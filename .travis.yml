@@ -1,0 +1,24 @@
+language: python
+python:
+  - "3.7"
+services:
+  - docker
+before_install:
+  - container_source="firedrakeproject/firedrake:latest"
+  - container_name="test"
+  - docker pull $container_source
+  - docker create --name=$container_name -it $container_source
+  - docker start $container_name
+install:
+  - activate="source /home/firedrake/firedrake/bin/activate"
+  - src_dir="/home/firedrake/firedrake/src/"
+  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
+  - docker exec $container_name bash -c "$activate; cd $src_dir; git clone --branch=$BRANCH https://github.com/alan-turing-institute/stat-fem.git; cd stat-fem; python setup.py install; pip install pytest-cov"
+script:
+  - docker exec $container_name bash -c "$activate; cd ${src_dir}stat-fem; pytest --cov=stat_fem/"
+after_success:
+  - docker cp $container_name:${src_dir}stat-fem/.coverage .
+  - token="a709d4d8-f453-4903-975e-0d028ac9602d"
+  - bash <(curl -s https://codecov.io/bash) -t token
+after_script:
+  - docker stop $container_name
