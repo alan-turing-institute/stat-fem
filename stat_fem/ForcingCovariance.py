@@ -1,0 +1,2 @@
+class ForcingCovariance(object):
+    pass
