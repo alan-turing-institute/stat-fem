@@ -9,9 +9,4 @@ def sqexp(x1, x2, sigma, l):
     x1 = np.array(x1)
     x2 = np.array(x2)
 
-    if x1.ndim == 1:
-        x1 = np.reshape(x1, (-1, 1))
-    if x2.ndim == 1:
-        x2 = np.reshape(x2, (-1, 1))
-
-    return sigma**2*np.exp(-0.5*cdist(x1, x2)**2/l**2)
+    return sigma**2*np.exp(-0.5*cdist(np.atleast_2d(x1), np.atleast_2d(x2))**2/l**2)
