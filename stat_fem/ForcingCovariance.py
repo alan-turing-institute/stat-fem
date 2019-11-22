@@ -30,7 +30,7 @@ class ForcingCovariance(object):
         # extract spatial coordinates from mesh
         # need this information on all processes, how is this stored? need an allgather?
 
-        self.nx = len(self.function_space.mesh().coordinates.vector().dat.data)
+        self.nx = self.function_space.mesh().num_vertices()
 
         # set parameters and covariance
 
