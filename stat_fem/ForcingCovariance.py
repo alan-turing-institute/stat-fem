@@ -1,6 +1,9 @@
 import numpy as np
+from firedrake import COMM_WORLD
 from firedrake.assemble import assemble
 from firedrake.constant import Constant
+from firedrake.ensemble import Ensemble
+from firedrake.function import Function
 from firedrake.functionspaceimpl import WithGeometry
 from firedrake.ufl_expr import TestFunction
 from ufl import dx
@@ -10,7 +13,7 @@ from .CovarianceFunctions import sqexp
 class ForcingCovariance(object):
     "class representing a sparse forcing covariance matrix"
     def __init__(self, function_space, sigma, l, cutoff=1.e-3, regularization=1.e-8,
-                 cov=sqexp):
+                 cov=sqexp, comm=COMM_WORLD):
         "create new forcing covariance from a mesh, vector space and covariance function"
 
         # need to investigate parallelization here, load balancing likely to be uneven
@@ -19,18 +22,22 @@ class ForcingCovariance(object):
         # know that we have reduced bandwidth (though unclear if this translates to a low
         # bandwidth of the assembled covariance matrix)
 
-        # assemble integrated basis functions from functionspace
-        # need basis functions on all processes, I think -- do we need to do an allgather?
-
         if not isinstance(function_space, WithGeometry):
             raise TypeError("bad input type for function_space: must be a FunctionSpace")
 
         self.function_space = function_space
 
-        # extract spatial coordinates from mesh
-        # need this information on all processes, how is this stored? need an allgather?
+        if isinstance(comm, Ensemble):
+            self.comm = comm.comm
+        elif not comm == COMM_WORLD:
+            raise TypeError("bad input for MPI communicator")
+        else:
+            self.comm = comm
 
-        self.nx = self.function_space.mesh().num_vertices()
+        # extract mesh and process local information
+
+        self.nx = Function(self.function_space).vector().size()
+        self.nx_local = Function(self.function_space).vector().local_size()
 
         # set parameters and covariance
 
@@ -44,8 +51,8 @@ class ForcingCovariance(object):
 
         # get local ownership information of distributed matrix
 
-        G = PETSc.Mat().createSBAIJ((self.nx, self.nx), 1)
-        G.setUp()
+        G = PETSc.Mat().create(comm=self.comm)
+        G.setSizes(((self.nx_local, -1), (self.nx_local, -1)))
 
         self.local_startind, self.local_endind = G.getOwnershipRange()
 
@@ -54,7 +61,7 @@ class ForcingCovariance(object):
 
         v = TestFunction(self.function_space)
 
-        return np.array(assemble(Constant(1.) * v * dx).vector().dat.data)
+        return np.array(assemble(Constant(1.) * v * dx).vector().gather())
 
     def _compute_G_vals(self):
         "compute nonzero values and stores in a dictionary along with number of nonzero elements"
@@ -88,8 +95,11 @@ class ForcingCovariance(object):
 
         G_dict, nnz = self._compute_G_vals()
 
-        self.G = PETSc.Mat()
-        self.G.createSBAIJ((self.nx, self.nx), 1, nnz=nnz)
+        self.G = PETSc.Mat().create(comm=self.comm)
+        self.G.setType('sbaij')
+        self.G.setSizes(((self.nx_local, -1), (self.nx_local, -1)))
+        self.G.setPreallocationNNZ(nnz)
+        self.G.setFromOptions()
         self.G.setUp()
 
         for key, val in G_dict.items():
@@ -100,3 +110,23 @@ class ForcingCovariance(object):
 
         self._generate_G()
         self.G.assemble()
+
+    def destroy(self):
+        "destroy allocated covariance forcing matrix"
+
+        self.G.destroy()
+
+    def get_nx(self):
+        "return number of nodes for FEM"
+
+        return self.nx
+
+    def get_nx_local(self):
+        "get process local number of nodes"
+
+        return self.nx_local
+
+    def __str__(self):
+        "create string representation for printing"
+
+        return "Forcing Covariance with {} mesh points".format(self.get_nx())
