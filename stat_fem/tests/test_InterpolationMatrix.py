@@ -105,7 +105,7 @@ def test_InterpolationMatrix_assemble():
 
     for i in range(imin, imax):
         for j in range(nd):
-            assert_allclose(im.interp.getValue(i, j), interp_expected[i,j])
+            assert_allclose(im.interp.getValue(i, j), interp_expected[i,j], atol = 1.e-10)
 
     im.destroy()
 
@@ -182,7 +182,7 @@ def test_InterpolationMatrix_interp_data_to_mesh():
     with out.dat.vec_ro as vec:
         imin, imax = im.interp.getOwnershipRange()
         for i in range(imin, imax):
-            assert_allclose(vec.getValue(i), expected[i])
+            assert_allclose(vec.getValue(i), expected[i], atol = 1.e-10)
 
     # bad input size and shape
 
@@ -237,7 +237,7 @@ def test_InterpolationMatrix_interp_mesh_to_data():
 
     out = im.interp_mesh_to_data(f)
 
-    assert_allclose(out, expected)
+    assert_allclose(out, expected, atol = 1.e-10)
 
     # failure due to bad input sizes
 
@@ -321,7 +321,7 @@ def test_interpolate_cell():
 
     val = interpolate_cell(data_coord, nodal_points)
 
-    assert_allclose(val, [0., 0.5, 0.5])
+    assert_allclose(val, [0., 0.5, 0.5], atol = 1.e-10)
 
     # 3D
 
@@ -336,14 +336,6 @@ def test_interpolate_cell():
 
     data_coord = np.array([0.5, 0.5])
     nodal_points = np.array([[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
-
-    with pytest.raises(AssertionError):
-        interpolate_cell(data_coord, nodal_points)
-
-    # failure: point not in domain
-
-    data_coord = np.array([0.5, 0.5])
-    nodal_points = np.array([[0., 0.], [0.1, 0.], [0., 0.1]])
 
     with pytest.raises(AssertionError):
         interpolate_cell(data_coord, nodal_points)

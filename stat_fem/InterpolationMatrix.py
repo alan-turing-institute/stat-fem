@@ -155,23 +155,23 @@ class InterpolationMatrix(object):
 def interpolate_cell(data_coord, nodal_points):
     """
     interpolate between nodal points and data point
-    note at present this only works for triangular/tetrahedral meshes
+    note at present this technically does a projection by performing a least squares solution
+    in the case that there are more degrees of freedom than free parameters
     """
 
     if nodal_points.ndim == 1:
         nodal_points = np.reshape(nodal_points, (-1, 1))
-    ndim = len(data_coord)
-    assert nodal_points.shape == (ndim + 1, ndim)
+    npts, ndim = nodal_points.shape
+    assert len(data_coord) == ndim
 
-    A = np.ones((ndim + 1, ndim + 1))
+    A = np.ones((ndim + 1, npts))
     A[0:-1,:] = np.transpose(nodal_points)
     b = np.array(list(data_coord) + [1.])
 
-    val = np.linalg.solve(A, b)
+    val = np.linalg.lstsq(A, b, rcond=None)[0]
 
     eps = 1.e-10
 
     assert np.abs(np.sum(val) - 1.) <= eps, "interpolation between data and coordinates failed"
-    assert np.all(val > -eps), "interpolation routine failed, point is not in the given cell"
 
     return val
