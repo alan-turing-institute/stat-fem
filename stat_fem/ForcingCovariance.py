@@ -4,7 +4,9 @@ from firedrake.assemble import assemble
 from firedrake.constant import Constant
 from firedrake.ensemble import Ensemble
 from firedrake.function import Function
+from firedrake.functionspace import VectorFunctionSpace
 from firedrake.functionspaceimpl import WithGeometry
+from firedrake.interpolation import interpolate
 from firedrake.ufl_expr import TestFunction
 from ufl import dx
 from firedrake.petsc import PETSc
@@ -71,7 +73,10 @@ class ForcingCovariance(object):
         nnz = []
 
         int_basis = self._integrate_basis_functions()
-        meshvals = np.array(self.function_space.mesh().coordinates.vector().dat.data)
+        mesh = self.function_space.ufl_domain()
+        W = VectorFunctionSpace(mesh, self.function_space.ufl_element())
+        X = interpolate(mesh.coordinates, W)
+        meshvals = np.array(X.dat.data_ro)
 
         for i in range(self.local_startind, self.local_endind):
             diag = (int_basis[i]*int_basis[i]*

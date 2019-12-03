@@ -4,7 +4,7 @@ import pytest
 from firedrake import Ensemble, COMM_WORLD
 from firedrake.utility_meshes import UnitIntervalMesh
 from firedrake.functionspace import FunctionSpace
-from ..InterpolationMatrix import InterpolationMatrix, interpolate
+from ..InterpolationMatrix import InterpolationMatrix, interpolate_cell
 from firedrake.function import Function
 
 def test_InterpolationMatrix():
@@ -302,7 +302,7 @@ def test_InterpolationMatrix_str():
 
     assert str(im) == "Interpolation matrix from %d mesh points to %d data points".format(nx + 1, nd)
 
-def test_interpolate():
+def test_interpolate_cell():
     "test the interpolate function"
 
     # 1D
@@ -310,7 +310,7 @@ def test_interpolate():
     data_coord = np.array([0.5])
     nodal_points = np.array([[0.], [1.]])
 
-    val = interpolate(data_coord, nodal_points)
+    val = interpolate_cell(data_coord, nodal_points)
 
     assert_allclose(val, [0.5, 0.5])
 
@@ -319,7 +319,7 @@ def test_interpolate():
     data_coord = np.array([0.5, 0.5])
     nodal_points = np.array([[0., 0.], [1., 0.], [0., 1.]])
 
-    val = interpolate(data_coord, nodal_points)
+    val = interpolate_cell(data_coord, nodal_points)
 
     assert_allclose(val, [0., 0.5, 0.5])
 
@@ -328,7 +328,7 @@ def test_interpolate():
     data_coord = np.array([1./3., 1./3., 1./3.])
     nodal_points = np.array([[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
 
-    val = interpolate(data_coord, nodal_points)
+    val = interpolate_cell(data_coord, nodal_points)
 
     assert_allclose(val, [0., 1./3., 1./3., 1./3.], atol = 1.e-9)
 
@@ -338,7 +338,7 @@ def test_interpolate():
     nodal_points = np.array([[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
 
     with pytest.raises(AssertionError):
-        interpolate(data_coord, nodal_points)
+        interpolate_cell(data_coord, nodal_points)
 
     # failure: point not in domain
 
@@ -346,4 +346,4 @@ def test_interpolate():
     nodal_points = np.array([[0., 0.], [0.1, 0.], [0., 0.1]])
 
     with pytest.raises(AssertionError):
-        interpolate(data_coord, nodal_points)
+        interpolate_cell(data_coord, nodal_points)

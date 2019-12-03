@@ -3,7 +3,9 @@ import numpy as np
 from firedrake import Function, COMM_WORLD
 from firedrake.ensemble import Ensemble
 from firedrake.petsc import PETSc
+from firedrake.functionspace import VectorFunctionSpace
 from firedrake.functionspaceimpl import WithGeometry
+from firedrake.interpolation import interpolate
 
 class InterpolationMatrix(object):
     "class representing an interpolation matrix"
@@ -48,7 +50,7 @@ class InterpolationMatrix(object):
         self.n_mesh_local = self.meshspace_vector.local_size()
         self.n_mesh = self.meshspace_vector.size()
 
-        nnz = len(function_space.cell_node_list[0])
+        nnz = len(self.function_space.cell_node_list[0])
 
         self.interp = PETSc.Mat().create(comm=self.ensemble_comm.comm)
         self.interp.setSizes(((self.n_mesh_local, -1), (self.n_data_local, -1)))
@@ -58,7 +60,10 @@ class InterpolationMatrix(object):
     def assemble(self):
         "compute values and assemble interpolation matrix"
 
-        meshvals_local = np.copy(self.function_space.mesh().coordinates.vector().dat.data_with_halos)
+        mesh = self.function_space.ufl_domain()
+        W = VectorFunctionSpace(mesh, self.function_space.ufl_element())
+        X = interpolate(mesh.coordinates, W)
+        meshvals_local = np.array(X.dat.data_with_halos)
         imin, imax = self.interp.getOwnershipRange()
 
         # loop over all data points
@@ -68,7 +73,7 @@ class InterpolationMatrix(object):
             if (not cell is None):
                 nodes = self.function_space.cell_node_list[cell]
                 points = meshvals_local[nodes]
-                interp_coords = interpolate(self.coords[i], points)
+                interp_coords = interpolate_cell(self.coords[i], points)
                 for (node, val) in zip(nodes, interp_coords):
                     if node < self.n_mesh_local:
                         self.interp.setValue(imin + node, i, val)
@@ -147,7 +152,7 @@ class InterpolationMatrix(object):
 
         return "Interpolation matrix from %d mesh points to %d data points".format(self.n_mesh, self.n_data)
 
-def interpolate(data_coord, nodal_points):
+def interpolate_cell(data_coord, nodal_points):
     """
     interpolate between nodal points and data point
     note at present this only works for triangular/tetrahedral meshes
