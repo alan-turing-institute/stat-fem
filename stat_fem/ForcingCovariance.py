@@ -55,8 +55,12 @@ class ForcingCovariance(object):
 
         G = PETSc.Mat().create(comm=self.comm)
         G.setSizes(((self.nx_local, -1), (self.nx_local, -1)))
+        G.setFromOptions()
+        G.setUp()
 
         self.local_startind, self.local_endind = G.getOwnershipRange()
+
+        G.destroy()
 
     def _integrate_basis_functions(self):
         "integrate the basis functions for computing the forcing covariance"
@@ -76,17 +80,19 @@ class ForcingCovariance(object):
         mesh = self.function_space.ufl_domain()
         W = VectorFunctionSpace(mesh, self.function_space.ufl_element())
         X = interpolate(mesh.coordinates, W)
-        meshvals = np.array(X.dat.data_ro)
+        meshvals = X.vector().gather()
 
         for i in range(self.local_startind, self.local_endind):
             diag = (int_basis[i]*int_basis[i]*
-                    self.cov(meshvals[i], meshvals[i], self.sigma,self.l))
-            G_dict[(i, i)] = diag*(1.+self.regularization)
+                    self.cov(meshvals[i], meshvals[i], self.sigma, self.l)[0,0])
+            G_dict[(i, i)] = diag+self.regularization
             current_nnz += 1
-            for j in range(i+1, self.nx):
+            for j in range(0, self.nx):
+                if j == i:
+                    continue
                 new_element = (int_basis[i]*int_basis[j]*
                                self.cov(meshvals[i], meshvals[j],
-                                        self.sigma, self.l))
+                                        self.sigma, self.l)[0,0])
                 if new_element/diag > self.cutoff:
                     G_dict[(i, j)] = new_element
                     current_nnz += 1
@@ -95,25 +101,21 @@ class ForcingCovariance(object):
 
         return G_dict, nnz
 
-    def _generate_G(self):
+    def assemble(self):
         "compute values of G and create sparse matrix"
 
         G_dict, nnz = self._compute_G_vals()
 
         self.G = PETSc.Mat().create(comm=self.comm)
-        self.G.setType('sbaij')
+        self.G.setType('aij')
         self.G.setSizes(((self.nx_local, -1), (self.nx_local, -1)))
-        self.G.setPreallocationNNZ(nnz)
+        self.G.setPreallocationNNZ(max(nnz))
         self.G.setFromOptions()
         self.G.setUp()
 
         for key, val in G_dict.items():
             self.G.setValue(key[0], key[1], val)
 
-    def assemble(self):
-        "compute values of covariance forcing and assemble the sparse matrix"
-
-        self._generate_G()
         self.G.assemble()
 
     def destroy(self):
