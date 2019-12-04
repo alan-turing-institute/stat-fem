@@ -9,7 +9,7 @@ from firedrake.interpolation import interpolate
 
 class InterpolationMatrix(object):
     "class representing an interpolation matrix"
-    def __init__(self, coords, function_space, ensemble_comm=None):
+    def __init__(self, function_space, coords, ensemble_comm=None):
         "create and assemble interpolation matrix"
 
         if ensemble_comm is None or ensemble_comm == COMM_WORLD:

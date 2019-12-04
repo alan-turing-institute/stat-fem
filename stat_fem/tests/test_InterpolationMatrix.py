@@ -23,7 +23,7 @@ def test_InterpolationMatrix():
 
     ens = Ensemble(COMM_WORLD, n_proc)
 
-    im = InterpolationMatrix(coords, V)
+    im = InterpolationMatrix(V, coords)
 
     if COMM_WORLD.rank == 0:
         gathered_sizes = (nd, nd)
@@ -52,7 +52,7 @@ def test_InterpolationMatrix_failures():
     coords = np.array([[0.5]])
 
     with pytest.raises(TypeError):
-        InterpolationMatrix(coords, 1.)
+        InterpolationMatrix(1., coords)
 
     # bad shape for coords
 
@@ -64,14 +64,14 @@ def test_InterpolationMatrix_failures():
     V = FunctionSpace(mesh, "CG", 1)
 
     with pytest.raises(AssertionError):
-        InterpolationMatrix(coords, V)
+        InterpolationMatrix(V, coords)
 
     # bad argument for ensemble comm
 
     coords = np.array([[0.5]])
 
     with pytest.raises(TypeError):
-        InterpolationMatrix(coords, V, 1)
+        InterpolationMatrix(V, coords, 1)
 
 def test_InterpolationMatrix_assemble():
     "test the assemble method of interpolation matrix"
@@ -86,7 +86,7 @@ def test_InterpolationMatrix_assemble():
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
 
-    im = InterpolationMatrix(coords, V)
+    im = InterpolationMatrix(V, coords)
     im.assemble()
 
     meshcoords = V.mesh().coordinates.vector().gather()
@@ -120,7 +120,7 @@ def test_InterpolationMatrix_gather():
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
 
-    im = InterpolationMatrix(coords, V)
+    im = InterpolationMatrix(V, coords)
 
     im.dataspace_distrib.set(5.)
 
@@ -139,7 +139,7 @@ def test_InterpolationMatrix_scatter():
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
 
-    im = InterpolationMatrix(coords, V)
+    im = InterpolationMatrix(V, coords)
 
     im.dataspace_gathered.set(5.)
 
@@ -160,7 +160,7 @@ def test_InterpolationMatrix_interp_data_to_mesh():
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
 
-    im = InterpolationMatrix(coords, V)
+    im = InterpolationMatrix(V, coords)
     im.assemble()
 
     if COMM_WORLD.rank == 0:
@@ -215,7 +215,7 @@ def test_InterpolationMatrix_interp_mesh_to_data():
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
 
-    im = InterpolationMatrix(coords, V)
+    im = InterpolationMatrix(V, coords)
     im.assemble()
 
     input_ordered = np.array([3., 2., 7., 4., 0., 0., 2., 1., 1., 1., 5.])
@@ -263,7 +263,7 @@ def test_InterpolationMatrix_get_meshspace_column_vector():
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
 
-    im = InterpolationMatrix(coords, V)
+    im = InterpolationMatrix(V, coords)
     im.assemble()
 
     vec_expected_ordered = np.array([0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.])
@@ -298,7 +298,7 @@ def test_InterpolationMatrix_str():
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
 
-    im = InterpolationMatrix(coords, V)
+    im = InterpolationMatrix(V, coords)
 
     assert str(im) == "Interpolation matrix from %d mesh points to %d data points".format(nx + 1, nd)
 
