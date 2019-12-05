@@ -54,14 +54,14 @@ class ForcingCovariance(object):
 
         # get local ownership information of distributed matrix
 
-        G = PETSc.Mat().create(comm=self.comm)
-        G.setSizes(((self.nx_local, -1), (self.nx_local, -1)))
-        G.setFromOptions()
-        G.setUp()
+        vtemp = PETSc.Vec().create(comm=self.comm)
+        vtemp.setSizes((self.nx_local, -1))
+        vtemp.setFromOptions()
+        vtemp.setUp()
 
-        self.local_startind, self.local_endind = G.getOwnershipRange()
+        self.local_startind, self.local_endind = vtemp.getOwnershipRange()
 
-        G.destroy()
+        vtemp.destroy()
 
         self.is_assembled = False
 
