@@ -1,4 +1,5 @@
 import numpy as np
+from firedrake import COMM_WORLD
 
 class ObsData(object):
     "represents a set of observations made at a set of coordinates with a corresponding uncertainty"
@@ -55,7 +56,10 @@ class ObsData(object):
     def get_data(self):
         "returns observations"
 
-        return self.data
+        if COMM_WORLD.rank == 0:
+            return self.data
+        else:
+            return np.zeros(0)
 
     def get_unc(self):
         "returns uncertainties (as standard deviation)"
@@ -73,7 +77,7 @@ class ObsData(object):
                   "Coordinates:\n" +
                   "{}\n".format(self.get_coords()) +
                   "Data:\n" +
-                  "{}\n".format(self.get_data()) +
+                  "{}\n".format(self.data) +
                   "Uncertainty:\n" +
                   "{}".format(self.get_unc()))
 

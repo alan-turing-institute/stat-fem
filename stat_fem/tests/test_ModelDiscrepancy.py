@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
+from firedrake import COMM_WORLD
 from ..ModelDiscrepancy import ModelDiscrepancy
 from ..ObsData import ObsData
 
@@ -26,7 +27,11 @@ def test_ModelDiscrepancy_init():
     r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
     K = sigma**2*np.exp(-0.5*r**2/l**2)
 
-    assert_allclose(md.K, K)
+    if COMM_WORLD.rank == 0:
+        assert_allclose(md.K, K)
+        assert md.n_local == md.n_obs
+    else:
+        assert md.K.shape == (0, 0)
 
 def test_ModelDiscrepancy_get_K():
     "test the get_K method of ModelDiscrepancy"
@@ -43,8 +48,11 @@ def test_ModelDiscrepancy_get_K():
 
     md = ModelDiscrepancy(od, rho, sigma, l)
 
-    r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
-    K = sigma**2*np.exp(-0.5*r**2/l**2)
+    if COMM_WORLD.rank == 0:
+        r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
+        K = sigma**2*np.exp(-0.5*r**2/l**2)
+    else:
+        K = np.zeros((0,0))
 
     assert_allclose(md.get_K(), K)
 
@@ -63,8 +71,11 @@ def test_ModelDiscrepancy_get_K_plus_sigma():
 
     md = ModelDiscrepancy(od, rho, sigma, l)
 
-    r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
-    K = sigma**2*np.exp(-0.5*r**2/l**2) + np.eye(3)*unc**2
+    if COMM_WORLD.rank == 0:
+        r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
+        K = sigma**2*np.exp(-0.5*r**2/l**2) + np.eye(3)*unc**2
+    else:
+        K = np.zeros((0,0))
 
     assert_allclose(md.get_K_plus_sigma(), K)
 

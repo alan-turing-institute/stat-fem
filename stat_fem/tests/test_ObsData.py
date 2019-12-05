@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from numpy.testing import assert_allclose
+from firedrake import COMM_WORLD
 from ..ObsData import ObsData
 
 def test_ObsData_init():
@@ -126,7 +127,10 @@ def test_ObsData_get_data():
 
     od = ObsData(coords, data, unc)
 
-    assert_allclose(od.get_data(), data)
+    if COMM_WORLD.rank == 0:
+        assert_allclose(od.get_data(), data)
+    else:
+        assert od.get_data().shape == (0,)
 
 def test_ObsData_get_unc():
     "test the get_unc method of ObsData"
