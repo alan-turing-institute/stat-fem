@@ -12,7 +12,7 @@ from firedrake.ufl_expr import TestFunction, TrialFunction
 from ufl import dx, dot, grad
 import pytest
 from ..ForcingCovariance import ForcingCovariance
-from ..solving import _solve_forcing_covariance
+from ..solving_utils import _solve_forcing_covariance
 
 def test_solve_forcing_covariance():
     "test solve_forcing_covariance"
@@ -77,8 +77,3 @@ def test_solve_forcing_covariance():
     result_expected = np.linalg.solve(ab, result_expected)
 
     assert_allclose(result_expected, result_actual, atol = 1.e-10)
-
-def test_solve_conditioned_FEM():
-    "test solve_conditioned_FEM"
-
-    pass

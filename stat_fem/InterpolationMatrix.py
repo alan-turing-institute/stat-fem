@@ -9,7 +9,7 @@ from firedrake.interpolation import interpolate
 from firedrake.matrix import Matrix
 from firedrake.vector import Vector
 from .ForcingCovariance import ForcingCovariance
-from .solving import _solve_forcing_covariance
+from .solving_utils import _solve_forcing_covariance
 
 class InterpolationMatrix(object):
     "class representing an interpolation matrix"
