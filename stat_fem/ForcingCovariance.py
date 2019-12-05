@@ -8,6 +8,7 @@ from firedrake.functionspace import VectorFunctionSpace
 from firedrake.functionspaceimpl import WithGeometry
 from firedrake.interpolation import interpolate
 from firedrake.ufl_expr import TestFunction
+from firedrake.vector import Vector
 from ufl import dx
 from firedrake.petsc import PETSc
 from .CovarianceFunctions import sqexp
@@ -62,6 +63,8 @@ class ForcingCovariance(object):
 
         G.destroy()
 
+        self.is_assembled = False
+
     def _integrate_basis_functions(self):
         "integrate the basis functions for computing the forcing covariance"
 
@@ -104,6 +107,9 @@ class ForcingCovariance(object):
     def assemble(self):
         "compute values of G and create sparse matrix"
 
+        if self.is_assembled:
+            return
+
         G_dict, nnz = self._compute_G_vals()
 
         self.G = PETSc.Mat().create(comm=self.comm)
@@ -118,10 +124,25 @@ class ForcingCovariance(object):
 
         self.G.assemble()
 
+        self.is_assembled = True
+
     def destroy(self):
         "destroy allocated covariance forcing matrix"
 
+        if not self.is_assembled:
+            return
+
         self.G.destroy()
+
+    def mult(self, x, y):
+        "perform matrix multiplication with firedrake vectors"
+
+        assert isinstance(x, Vector), "x must be a firedrake vector"
+        assert isinstance(y, Vector), "y must be a firedrake vector"
+
+        with x.dat.vec_ro as xtmp:
+            with y.dat.vec as ytmp:
+                self.G.mult(xtmp, ytmp)
 
     def get_nx(self):
         "return number of nodes for FEM"

@@ -43,6 +43,7 @@ def test_InterpolationMatrix():
     assert im.dataspace_distrib.getSizes() == (nd//n_proc, nd)
     assert im.dataspace_gathered.getSizes() == gathered_sizes
     assert im.interp.getSizes() == ((vec.local_size(), vec.size()), (nd//n_proc, nd))
+    assert not im.is_assembled
 
 def test_InterpolationMatrix_failures():
     "test situation where InterpolationMatrix should fail"
@@ -88,6 +89,8 @@ def test_InterpolationMatrix_assemble():
 
     im = InterpolationMatrix(V, coords)
     im.assemble()
+
+    assert im.is_assembled
 
     meshcoords = V.mesh().coordinates.vector().gather()
     meshcoords_ordered = np.linspace(0., 1., nx + 1)

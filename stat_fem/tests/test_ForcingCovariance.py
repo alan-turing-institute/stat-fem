@@ -46,6 +46,7 @@ def test_ForcingCovariance_init():
     assert_allclose(fc.regularization, 1.e-8)
     assert fc.local_startind == start
     assert fc.local_endind == end
+    assert not fc.is_assembled
 
     # set cutoff, regularization, and use an ensemble
 
@@ -65,6 +66,7 @@ def test_ForcingCovariance_init():
     assert_allclose(fc.regularization, regularization)
     assert fc.local_startind == start
     assert fc.local_endind == end
+    assert not fc.is_assembled
 
 def test_ForcingCovariance_init_failures():
     "situations where ForcingCovariance will fail"
@@ -173,11 +175,49 @@ def test_ForcingCovariance_assemble():
 
     fc.assemble()
 
+    assert fc.is_assembled
+
     for i in range(fc.local_startind, fc.local_endind):
         for j in range(0, nx + 1):
             assert_allclose(fc.G.getValue(i, j), cov_expected[i, j], atol = 1.e-8, rtol = 1.e-6)
 
     fc.destroy()
+
+def test_ForcingCovariance_mult():
+    "test the multiplication method of ForcingCovariance"
+
+    nx = 10
+
+    mesh = UnitIntervalMesh(nx)
+    V = FunctionSpace(mesh, "CG", 1)
+    sigma = 1.
+    l = 0.1
+    cutoff = 0.
+    regularization = 1.e-8
+
+    W = VectorFunctionSpace(mesh, V.ufl_element())
+    X = interpolate(mesh.coordinates, W)
+    meshcoords = X.vector().gather()
+
+    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
+    basis = fc._integrate_basis_functions()
+
+    r = cdist(np.reshape(meshcoords, (-1, 1)), np.reshape(meshcoords, (-1, 1)))
+    cov_expected = (np.outer(basis, basis)*sigma**2*np.exp(-0.5*r**2/l**2) +
+                    np.eye(nx + 1)*regularization)
+
+    fc.assemble()
+
+    x = Function(V).vector()
+    x.set_local(np.ones(x.local_size()))
+
+    y = Function(V).vector()
+
+    fc.mult(x, y)
+
+    ygathered = y.gather()
+
+    assert_allclose(ygathered, np.dot(cov_expected, np.ones(nx + 1)))
 
 def test_ForcingCovariance_get_nx():
     "test the get_nx method of ForcingCovariance"

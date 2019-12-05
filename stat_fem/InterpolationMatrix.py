@@ -6,6 +6,8 @@ from firedrake.petsc import PETSc
 from firedrake.functionspace import VectorFunctionSpace
 from firedrake.functionspaceimpl import WithGeometry
 from firedrake.interpolation import interpolate
+from firedrake.vector import Vector
+from .solving import _solve_forcing_covariance
 
 class InterpolationMatrix(object):
     "class representing an interpolation matrix"
@@ -54,11 +56,17 @@ class InterpolationMatrix(object):
 
         self.interp = PETSc.Mat().create(comm=self.ensemble_comm.comm)
         self.interp.setSizes(((self.n_mesh_local, -1), (self.n_data_local, -1)))
+        self.interp.setPreallocationNNZ(nnz)
         self.interp.setFromOptions()
         self.interp.setUp()
 
+        self.is_assembled = False
+
     def assemble(self):
         "compute values and assemble interpolation matrix"
+
+        if self.is_assembled:
+            return
 
         mesh = self.function_space.ufl_domain()
         W = VectorFunctionSpace(mesh, self.function_space.ufl_element())
@@ -80,7 +88,7 @@ class InterpolationMatrix(object):
 
         self.interp.assemble()
 
-        self.interp.view()
+        self.is_assembled = True
 
     def _gather(self):
         "wrapper to transfer data from distributed dataspace vector to root"
@@ -97,12 +105,15 @@ class InterpolationMatrix(object):
     def destroy(self):
         "deallocate memory for PETSc vectors and matrix"
 
-        self.interp.destroy()
         self.dataspace_gathered.destroy()
         self.dataspace_distrib.destroy()
+        self.interp.destroy()
 
     def interp_data_to_mesh(self, data_array):
         "take a gathered numpy array in the data space and interpolate to a distributed mesh vector"
+
+        if not self.is_assembled:
+            self.assemble()
 
         data_array = np.array(data_array)
 
@@ -122,7 +133,11 @@ class InterpolationMatrix(object):
     def interp_mesh_to_data(self, input_mesh_vector):
         "take a distributed mesh vector and interpolate to a gathered numpy array"
 
+        if not self.is_assembled:
+            self.assemble()
+
         # check vector local sizes and copy values
+        assert isinstance(input_mesh_vector, Vector), "input_mesh_vector must be a firedrake vector"
         assert (input_mesh_vector.local_size() == self.meshspace_vector.local_size() and
                 input_mesh_vector.size() == self.meshspace_vector.size()), "bad size for input vector"
         self.meshspace_vector.set_local(input_mesh_vector.get_local())
@@ -136,10 +151,45 @@ class InterpolationMatrix(object):
 
         return np.copy(self.dataspace_gathered.array)
 
+    def interp_covariance_to_data(self, A, G):
+        "interpolate a FEM prior covariance matrix to the data space"
+
+        if not self.is_assembled:
+            self.assemble()
+
+        # use ensemble comm to split up solves across ensemble processes
+
+        v_tmp = PETSc.Vec().create(comm=self.ensemble_comm.ensemble_comm)
+        v_tmp.setSizes((-1, self.n_data))
+        v_tmp.setFromOptions()
+
+        imin, imax = v_tmp.getOwnershipRange()
+
+        v_tmp.destroy()
+
+        # create distributed vector across all ensemble root processes for collecting results
+
+        if self.ensemble_comm.ensemble_comm.rank == 0:
+            n_local = imax - imin
+        else:
+            n_local = 0
+
+        result_root_dist = PETSc.Vec().create(comm=self.ensemble_comm.ensemble_comm)
+        result_root_dist.setSizes((n_local, -1))
+        result_root_dist.setFromOptions()
+
+        for i in range(imin, imax):
+            rhs = self.get_meshspace_column_vector(i)
+            tmp = _solve_forcing_covariance(G, A, rhs)
+            result_root_dist.array = self.interp_mesh_to_data(tmp)
+
     def get_meshspace_column_vector(self, idx):
         "returns distributed meshspace column vector for a given data point"
 
         assert idx >= 0 and idx < self.n_data, "idx out of range"
+
+        if not self.is_assembled:
+            self.assemble()
 
         f = Function(self.function_space).vector()
 
@@ -156,7 +206,7 @@ def interpolate_cell(data_coord, nodal_points):
     """
     interpolate between nodal points and data point
     note at present this technically does a projection by performing a least squares solution
-    in the case that there are more degrees of freedom than free parameters
+    in the case that there are more constraints than free parameters
     """
 
     if nodal_points.ndim == 1:
