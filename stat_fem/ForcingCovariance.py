@@ -140,6 +140,9 @@ class ForcingCovariance(object):
         assert isinstance(x, Vector), "x must be a firedrake vector"
         assert isinstance(y, Vector), "y must be a firedrake vector"
 
+        if not self.is_assembled:
+            self.assemble()
+
         with x.dat.vec_ro as xtmp:
             with y.dat.vec as ytmp:
                 self.G.mult(xtmp, ytmp)

@@ -40,7 +40,6 @@ def test_solve_forcing_covariance():
     basis = fc._integrate_basis_functions()
 
     fc.assemble()
-    A.petscmat.view()
 
     r = cdist(np.reshape(meshcoords, (-1, 1)), np.reshape(meshcoords, (-1, 1)))
     cov = (np.outer(basis, basis)*sigma**2*np.exp(-0.5*r**2/l**2) +

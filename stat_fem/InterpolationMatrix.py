@@ -6,21 +6,23 @@ from firedrake.petsc import PETSc
 from firedrake.functionspace import VectorFunctionSpace
 from firedrake.functionspaceimpl import WithGeometry
 from firedrake.interpolation import interpolate
+from firedrake.matrix import Matrix
 from firedrake.vector import Vector
+from .ForcingCovariance import ForcingCovariance
 from .solving import _solve_forcing_covariance
 
 class InterpolationMatrix(object):
     "class representing an interpolation matrix"
-    def __init__(self, function_space, coords, ensemble_comm=None):
+    def __init__(self, function_space, coords, comm=COMM_WORLD):
         "create and assemble interpolation matrix"
 
-        if ensemble_comm is None or ensemble_comm == COMM_WORLD:
+        if comm == COMM_WORLD:
             # if no ensemble communicator, do not parallelize forcing covariance solving
             self.ensemble_comm = Ensemble(COMM_WORLD, COMM_WORLD.size)
         else:
-            if not isinstance(ensemble_comm, Ensemble):
+            if not isinstance(comm, Ensemble):
                 raise (TypeError, "ensemble_comm must be an Ensemble or COMM_WORLD")
-            self.ensemble_comm = ensemble_comm
+            self.ensemble_comm = comm
 
         if not isinstance(function_space, WithGeometry):
             raise TypeError("bad input type for function_space: must be a FunctionSpace")
@@ -137,7 +139,8 @@ class InterpolationMatrix(object):
             self.assemble()
 
         # check vector local sizes and copy values
-        assert isinstance(input_mesh_vector, Vector), "input_mesh_vector must be a firedrake vector"
+        if not isinstance(input_mesh_vector, Vector):
+            raise TypeError("input_mesh_vector must be a firedrake vector")
         assert (input_mesh_vector.local_size() == self.meshspace_vector.local_size() and
                 input_mesh_vector.size() == self.meshspace_vector.size()), "bad size for input vector"
         self.meshspace_vector.set_local(input_mesh_vector.get_local())
@@ -151,8 +154,13 @@ class InterpolationMatrix(object):
 
         return np.copy(self.dataspace_gathered.array)
 
-    def interp_covariance_to_data(self, A, G):
+    def interp_covariance_to_data(self, G, A):
         "interpolate a FEM prior covariance matrix to the data space"
+
+        if not isinstance(A, Matrix):
+            raise TypeError("A must be an assembled firedrake matrix")
+        if not isinstance(G, ForcingCovariance):
+            raise TypeError("G must be a ForcingCovariance class")
 
         if not self.is_assembled:
             self.assemble()
@@ -167,21 +175,43 @@ class InterpolationMatrix(object):
 
         v_tmp.destroy()
 
-        # create distributed vector across all ensemble root processes for collecting results
+        # create array for holding results
 
-        if self.ensemble_comm.ensemble_comm.rank == 0:
-            n_local = imax - imin
+        if self.ensemble_comm.comm.rank == 0:
+            n_local = self.n_data
         else:
             n_local = 0
 
-        result_root_dist = PETSc.Vec().create(comm=self.ensemble_comm.ensemble_comm)
-        result_root_dist.setSizes((n_local, -1))
-        result_root_dist.setFromOptions()
+        result_tmparray = np.zeros((imax - imin, n_local))
 
         for i in range(imin, imax):
             rhs = self.get_meshspace_column_vector(i)
             tmp = _solve_forcing_covariance(G, A, rhs)
-            result_root_dist.array = self.interp_mesh_to_data(tmp)
+            result_tmparray[i - imin] = self.interp_mesh_to_data(tmp)
+
+        # create distributed vector for gathering results at root
+
+        cov_distrib = PETSc.Vec().create(comm=self.ensemble_comm.ensemble_comm)
+        cov_distrib.setSizes((n_local*(imax - imin), -1))
+        cov_distrib.setFromOptions()
+
+        cov_distrib.array = result_tmparray.flatten()
+
+        scatterfunc, cov_gathered = PETSc.Scatter.toZero(cov_distrib)
+
+        scatterfunc.scatter(cov_distrib, cov_gathered,
+                            mode=PETSc.ScatterMode.SCATTER_FORWARD)
+
+        out_array = np.copy(cov_gathered.array)
+        cov_distrib.destroy()
+        cov_gathered.destroy()
+
+        if self.ensemble_comm.comm.rank == 0 and self.ensemble_comm.ensemble_comm.rank == 0:
+            outsize = (self.n_data, self.n_data)
+        else:
+            outsize = (0,0)
+
+        return np.reshape(out_array, outsize)
 
     def get_meshspace_column_vector(self, idx):
         "returns distributed meshspace column vector for a given data point"
