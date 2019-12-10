@@ -1,11 +1,11 @@
-import pytest
 import numpy as np
 from numpy.testing import assert_allclose
+import pytest
 from firedrake import COMM_WORLD
 from ..ObsData import ObsData
 
 def test_ObsData_init():
-    "test ObsData"
+    "test ObsData init method"
 
     # simple 1D coords and single uncertainty
 
@@ -16,7 +16,10 @@ def test_ObsData_init():
     od = ObsData(coords, data, unc)
 
     assert_allclose(od.coords, np.reshape(coords, (-1, 1)))
-    assert_allclose(od.data, data)
+    if COMM_WORLD.rank == 0:
+        assert_allclose(od.data, data)
+    else:
+        assert od.data.shape == (0,)
     assert_allclose(od.unc, unc)
     assert od.n_dim == 1
     assert od.n_obs == 3
@@ -29,7 +32,10 @@ def test_ObsData_init():
     od = ObsData(coords, data, unc)
 
     assert_allclose(od.coords, coords)
-    assert_allclose(od.data, data)
+    if COMM_WORLD.rank == 0:
+        assert_allclose(od.data, data)
+    else:
+        assert od.data.shape == (0,)
     assert_allclose(od.unc, unc)
     assert od.n_dim == 2
     assert od.n_obs == 3
@@ -41,7 +47,10 @@ def test_ObsData_init():
     od = ObsData(coords, data, unc)
 
     assert_allclose(od.coords, coords)
-    assert_allclose(od.data, data)
+    if COMM_WORLD.rank == 0:
+        assert_allclose(od.data, data)
+    else:
+        assert od.data.shape == (0,)
     assert_allclose(od.unc, 0.)
     assert od.n_dim == 2
     assert od.n_obs == 3
@@ -84,6 +93,63 @@ def test_ObsData_init_failures():
 
     with pytest.raises(AssertionError):
         od = ObsData(coords, data, unc)
+
+    unc = 1.
+
+    with pytest.raises(TypeError):
+        od = ObsData(coords, data, unc, comm=1.)
+
+def test_ObsData_calc_K():
+    "test the calc_K method of ObsData"
+
+    coords = np.array([[2., 1.], [0., 2.], [1., 1.]])
+    data = np.array([1., 2., 3.])
+    unc = 0.1
+
+    params = np.ones(2)
+    sigma = 1.
+    l = 1.
+
+    od = ObsData(coords, data, unc)
+
+    if COMM_WORLD.rank == 0:
+        r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
+        K = sigma**2*np.exp(-0.5*r**2/l**2)
+    else:
+        K = np.zeros((0,0))
+
+    assert_allclose(od.calc_K(params), K)
+
+    # fails if parameter is negative
+
+    with pytest.raises(AssertionError):
+        od.calc_K(np.zeros(2))
+
+    # fails if params has wrong length
+
+    with pytest.raises(AssertionError):
+        od.calc_K(np.ones(3))
+
+def test_ObsData_calc_K_plus_sigma():
+    "test the get_K method of ModelDiscrepancy"
+
+    coords = np.array([[2., 1.], [0., 2.], [1., 1.]])
+    data = np.array([1., 2., 3.])
+    unc = 0.1
+
+    params = np.ones(2)
+    sigma = 1.
+    l = 1.
+
+    od = ObsData(coords, data, unc)
+
+    if COMM_WORLD.rank == 0:
+        r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
+        K = sigma**2*np.exp(-0.5*r**2/l**2) + np.eye(3)*unc**2
+    else:
+        K = np.zeros((0,0))
+
+    assert_allclose(od.calc_K_plus_sigma(params), K)
 
 def test_ObsData_get_n_dim():
     "test the get_n_dim method of ObsData"
@@ -143,25 +209,4 @@ def test_ObsData_get_unc():
 
     assert_allclose(od.get_unc(), unc)
 
-def test_ObsData_str():
-    "test the string method of ObsData"
 
-    coords = np.array([[1., 2.], [3., 4.], [5., 6.]])
-    data = np.array([1., 2., 3.])
-    unc = np.array([4., 5., 6.])
-
-    od = ObsData(coords, data, unc)
-
-    outstr = ("Observational Data:\n" +
-              "Number of dimensions:\n" +
-              "{}\n".format(2) +
-              "Number of observations:\n" +
-              "{}\n".format(3) +
-              "Coordinates:\n" +
-              "{}\n".format(coords) +
-              "Data:\n" +
-              "{}\n".format(data) +
-              "Uncertainty:\n" +
-              "{}".format(unc))
-
-    assert outstr == str(od)
