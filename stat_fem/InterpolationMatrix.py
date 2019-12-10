@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from firedrake import Function, COMM_WORLD
+from firedrake import Function, COMM_SELF
 from firedrake.ensemble import Ensemble
 from firedrake.petsc import PETSc
 from firedrake.functionspace import VectorFunctionSpace
@@ -13,22 +13,15 @@ from .solving_utils import _solve_forcing_covariance
 
 class InterpolationMatrix(object):
     "class representing an interpolation matrix"
-    def __init__(self, function_space, coords, comm=COMM_WORLD):
+    def __init__(self, function_space, coords):
         "create and assemble interpolation matrix"
-
-        if comm == COMM_WORLD:
-            # if no ensemble communicator, do not parallelize forcing covariance solving
-            self.ensemble_comm = Ensemble(COMM_WORLD, COMM_WORLD.size)
-        else:
-            if not isinstance(comm, Ensemble):
-                raise (TypeError, "ensemble_comm must be an Ensemble or COMM_WORLD")
-            self.ensemble_comm = comm
 
         if not isinstance(function_space, WithGeometry):
             raise TypeError("bad input type for function_space: must be a FunctionSpace")
 
         self.coords = np.copy(coords)
         self.function_space = function_space
+        self.comm = function_space.comm
 
         self.n_data = coords.shape[0]
         assert (coords.shape[1] == self.function_space.mesh().cell_dimension()
@@ -38,7 +31,7 @@ class InterpolationMatrix(object):
 
         # dataspace_vector is a distributed PETSc vector in the data space
 
-        self.dataspace_distrib = PETSc.Vec().create(comm=self.ensemble_comm.comm)
+        self.dataspace_distrib = PETSc.Vec().create(comm=self.comm)
         self.dataspace_distrib.setSizes((-1, self.n_data))
         self.dataspace_distrib.setFromOptions()
 
@@ -56,7 +49,7 @@ class InterpolationMatrix(object):
 
         nnz = len(self.function_space.cell_node_list[0])
 
-        self.interp = PETSc.Mat().create(comm=self.ensemble_comm.comm)
+        self.interp = PETSc.Mat().create(comm=self.comm)
         self.interp.setSizes(((self.n_mesh_local, -1), (self.n_data_local, -1)))
         self.interp.setPreallocationNNZ(nnz)
         self.interp.setFromOptions()
@@ -154,20 +147,22 @@ class InterpolationMatrix(object):
 
         return np.copy(self.dataspace_gathered.array)
 
-    def interp_covariance_to_data(self, G, A):
+    def interp_covariance_to_data(self, G, A, ensemble_comm=COMM_SELF):
         "interpolate a FEM prior covariance matrix to the data space"
 
         if not isinstance(A, Matrix):
             raise TypeError("A must be an assembled firedrake matrix")
         if not isinstance(G, ForcingCovariance):
             raise TypeError("G must be a ForcingCovariance class")
+        if not isinstance(ensemble_comm, type(COMM_SELF)):
+            raise TypeError("ensemble_comm must be an MPI communicator created from a firedrake Ensemble")
 
         if not self.is_assembled:
             self.assemble()
 
         # use ensemble comm to split up solves across ensemble processes
 
-        v_tmp = PETSc.Vec().create(comm=self.ensemble_comm.ensemble_comm)
+        v_tmp = PETSc.Vec().create(comm=ensemble_comm)
         v_tmp.setSizes((-1, self.n_data))
         v_tmp.setFromOptions()
 
@@ -176,11 +171,16 @@ class InterpolationMatrix(object):
         v_tmp.destroy()
 
         # create array for holding results
+        # if root on base comm, will have data at the end of the solve/interpolation
+        # otherwise, size will be zero
 
-        if self.ensemble_comm.comm.rank == 0:
+        if self.comm.rank == 0:
             n_local = self.n_data
         else:
             n_local = 0
+
+        # additional index is for the column vectors that this process owns in the
+        # ensemble, which has length imax - imin
 
         result_tmparray = np.zeros((imax - imin, n_local))
 
@@ -191,7 +191,7 @@ class InterpolationMatrix(object):
 
         # create distributed vector for gathering results at root
 
-        cov_distrib = PETSc.Vec().create(comm=self.ensemble_comm.ensemble_comm)
+        cov_distrib = PETSc.Vec().create(comm=ensemble_comm)
         cov_distrib.setSizes((n_local*(imax - imin), -1))
         cov_distrib.setFromOptions()
 
@@ -206,7 +206,10 @@ class InterpolationMatrix(object):
         cov_distrib.destroy()
         cov_gathered.destroy()
 
-        if self.ensemble_comm.comm.rank == 0 and self.ensemble_comm.ensemble_comm.rank == 0:
+        # reshape output -- if I am root on both the main comm and ensemble comm then
+        # I have the whole array. Other processes have nothing
+
+        if self.comm.rank == 0 and ensemble_comm.rank == 0:
             outsize = (self.n_data, self.n_data)
         else:
             outsize = (0,0)

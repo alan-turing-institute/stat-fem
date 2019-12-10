@@ -29,8 +29,6 @@ def test_InterpolationMatrix():
     V = FunctionSpace(mesh, "CG", 1)
     vec = Function(V).vector()
 
-    ens = Ensemble(COMM_WORLD, n_proc)
-
     im = InterpolationMatrix(V, coords)
 
     if COMM_WORLD.rank == 0:
@@ -44,8 +42,6 @@ def test_InterpolationMatrix():
     assert im.n_mesh_local == vec.local_size()
     assert_allclose(im.coords, coords)
     assert im.function_space == V
-    assert im.ensemble_comm.ensemble_comm.size == ens.ensemble_comm.size
-    assert im.ensemble_comm.comm.size == ens.comm.size
     assert im.meshspace_vector.size() == vec.size()
     assert im.meshspace_vector.local_size() == vec.local_size()
     assert im.dataspace_distrib.getSizes() == (nd//n_proc, nd)
@@ -74,13 +70,6 @@ def test_InterpolationMatrix_failures():
 
     with pytest.raises(AssertionError):
         InterpolationMatrix(V, coords)
-
-    # bad argument for ensemble comm
-
-    coords = np.array([[0.5]])
-
-    with pytest.raises(TypeError):
-        InterpolationMatrix(V, coords, 1)
 
 def test_InterpolationMatrix_assemble():
     "test the assemble method of interpolation matrix"
@@ -361,7 +350,7 @@ def test_InterpolationMatrix_interp_covariance_to_data_ensemble():
     mesh = UnitIntervalMesh(nx, comm=my_ensemble.comm)
     V = FunctionSpace(mesh, "CG", 1)
 
-    im = InterpolationMatrix(V, coords, comm=my_ensemble)
+    im = InterpolationMatrix(V, coords)
     im.assemble()
 
     assert im.is_assembled
@@ -423,7 +412,7 @@ def test_InterpolationMatrix_interp_covariance_to_data_ensemble():
     result_expected = np.linalg.solve(ab, result_expected)
     result_expected = np.dot(interp_expected.T, result_expected)
 
-    result_actual = im.interp_covariance_to_data(fc, A)
+    result_actual = im.interp_covariance_to_data(fc, A, my_ensemble.ensemble_comm)
 
     if COMM_WORLD.rank == 0:
         assert_allclose(result_expected, result_actual, atol=1.e-10)
