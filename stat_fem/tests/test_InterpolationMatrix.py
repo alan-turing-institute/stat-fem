@@ -378,7 +378,7 @@ def test_InterpolationMatrix_interp_covariance_to_data_ensemble():
     cutoff = 0.
     regularization = 1.e-8
 
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization, comm=my_ensemble)
+    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
     basis = fc._integrate_basis_functions()
 
     fc.assemble()

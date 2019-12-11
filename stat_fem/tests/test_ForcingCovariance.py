@@ -48,26 +48,6 @@ def test_ForcingCovariance_init():
     assert fc.local_endind == end
     assert not fc.is_assembled
 
-    # set cutoff, regularization, and use an ensemble
-
-    cutoff = 1.e-5
-    regularization = 1.e-2
-
-    ensemble_comm = Ensemble(COMM_WORLD, COMM_WORLD.size)
-
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization, comm=ensemble_comm)
-
-    assert fc.nx == n
-    assert fc.nx_local == n_local
-    assert fc.function_space == V
-    assert_allclose(fc.sigma, sigma)
-    assert_allclose(fc.l, l)
-    assert_allclose(fc.cutoff, cutoff)
-    assert_allclose(fc.regularization, regularization)
-    assert fc.local_startind == start
-    assert fc.local_endind == end
-    assert not fc.is_assembled
-
 def test_ForcingCovariance_init_failures():
     "situations where ForcingCovariance will fail"
 
@@ -87,11 +67,6 @@ def test_ForcingCovariance_init_failures():
 
     with pytest.raises(AssertionError):
         ForcingCovariance(V, sigma, l, regularization=-1.)
-
-    # MPI comm bad type
-
-    with pytest.raises(TypeError):
-        ForcingCovariance(V, sigma, l, comm=1.)
 
 def test_ForcingCovariance_integrate_basis_functions():
     "test the method to integrate basis functions in ForcingCovariance"

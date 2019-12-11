@@ -16,7 +16,7 @@ from .CovarianceFunctions import sqexp
 class ForcingCovariance(object):
     "class representing a sparse forcing covariance matrix"
     def __init__(self, function_space, sigma, l, cutoff=1.e-3, regularization=1.e-8,
-                 cov=sqexp, comm=COMM_WORLD):
+                 cov=sqexp):
         "create new forcing covariance from a mesh, vector space and covariance function"
 
         # need to investigate parallelization here, load balancing likely to be uneven
@@ -30,12 +30,7 @@ class ForcingCovariance(object):
 
         self.function_space = function_space
 
-        if isinstance(comm, Ensemble):
-            self.comm = comm.comm
-        elif not comm == COMM_WORLD:
-            raise TypeError("bad input for MPI communicator")
-        else:
-            self.comm = comm
+        self.comm = function_space.comm
 
         # extract mesh and process local information
 
