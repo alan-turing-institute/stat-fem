@@ -3,8 +3,8 @@ import numpy as np
 from numpy.testing import assert_allclose
 from scipy.spatial.distance import cdist
 from firedrake import UnitIntervalMesh, FunctionSpace, dx, TrialFunction, TestFunction, interpolate
-from firedrake import solve, dot, assemble, DirichletBC, grad, Function, VectorFunctionSpace
-from firedrake import COMM_WORLD, Ensemble
+from firedrake import dot, assemble, DirichletBC, grad, Function, VectorFunctionSpace
+from firedrake import COMM_WORLD, Ensemble, SpatialCoordinate, pi, sin, solve
 from ..solving import solve_posterior, solve_posterior_covariance, solve_prior_covariance
 from ..ForcingCovariance import ForcingCovariance
 from ..ObsData import ObsData
@@ -28,12 +28,14 @@ def test_solve_prior_covariance():
     V = FunctionSpace(mesh, "CG", 1)
     u = TrialFunction(V)
     v = TestFunction(V)
-    a = dot(grad(u), grad(v))*dx
-    bc = DirichletBC(V, 0., "on_boundary")
-    A = assemble(a, bcs=bc)
     f = Function(V)
-    b = f * v * dx
-    b = assemble(b)
+    x = SpatialCoordinate(mesh)
+    f.interpolate((4.*pi*pi)*sin(x[0]*pi*2))
+    a = (dot(grad(v), grad(u))) * dx
+    L = f * v * dx
+    bc = DirichletBC(V, 0., "on_boundary")
+    A = assemble(a, bcs = bc)
+    b = assemble(L)
 
     sigma = 1.
     l = 0.1
@@ -65,12 +67,12 @@ def test_solve_prior_covariance():
                            [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0., -10.,  20.,   0.],
                            [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   1.]])
     ab = np.zeros((nx + 1, nx + 1))
-    b_ordered = np.array([ 7.7349438838949480e-01,  4.3455177640794940e+00,
-                           7.0311954409970703e+00,  7.0311954409970685e+00,
-                           4.3455177640794940e+00, -5.5511151231257827e-16,
-                          -4.3455177640794957e+00, -7.0311954409970676e+00,
-                          -7.0311954409970667e+00, -4.3455177640794940e+00,
-                          -7.7349438838949536e-01])
+    b_ordered = np.array([ 3.8674719419474740e-01,  2.1727588820397470e+00,
+                           3.5155977204985351e+00,  3.5155977204985343e+00,
+                           2.1727588820397470e+00, -2.7755575615628914e-16,
+                          -2.1727588820397479e+00, -3.5155977204985338e+00,
+                          -3.5155977204985334e+00, -2.1727588820397470e+00,
+                          -3.8674719419474768e-01])
     b_actual = np.zeros(nx + 1)
 
     meshcoords_ordered = np.linspace(0., 1., nx + 1)
@@ -100,13 +102,12 @@ def test_solve_prior_covariance():
     C_expected = np.linalg.solve(ab, C_expected)
     C_expected = np.dot(interp.T, C_expected)
 
-    x = Function(V)
-    solve(A, x, b)
-
-    m_expected = np.dot(interp.T, x.vector().gather())
+    u = Function(V)
+    solve(A, u, b)
+    m_expected = np.dot(interp.T, u.vector().gather())
 
     if COMM_WORLD.rank == 0:
-        assert_allclose(m_expected, mu)
+        assert_allclose(m_expected, mu, atol = 1.e-10)
         assert_allclose(C_expected, Cu, atol = 1.e-10)
     else:
         assert mu.shape == (0,)
@@ -124,12 +125,14 @@ def test_solve_prior_covariance_parallel():
     V = FunctionSpace(mesh, "CG", 1)
     u = TrialFunction(V)
     v = TestFunction(V)
-    a = dot(grad(u), grad(v))*dx
-    bc = DirichletBC(V, 0., "on_boundary")
-    A = assemble(a, bcs=bc)
     f = Function(V)
-    b = f * v * dx
-    b = assemble(b)
+    x = SpatialCoordinate(mesh)
+    f.interpolate((2.*pi)*sin(x[0]*pi*2))
+    a = (dot(grad(v), grad(u))) * dx
+    L = f * v * dx
+    bc = DirichletBC(V, 0., "on_boundary")
+    A = assemble(a, bcs = bc)
+    b = assemble(L)
 
     sigma = 1.
     l = 0.1
@@ -161,12 +164,12 @@ def test_solve_prior_covariance_parallel():
                            [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0., -10.,  20.,   0.],
                            [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   1.]])
     ab = np.zeros((nx + 1, nx + 1))
-    b_ordered = np.array([ 7.7349438838949480e-01,  4.3455177640794940e+00,
-                           7.0311954409970703e+00,  7.0311954409970685e+00,
-                           4.3455177640794940e+00, -5.5511151231257827e-16,
-                          -4.3455177640794957e+00, -7.0311954409970676e+00,
-                          -7.0311954409970667e+00, -4.3455177640794940e+00,
-                          -7.7349438838949536e-01])
+    b_ordered = np.array([ 3.8674719419474740e-01,  2.1727588820397470e+00,
+                           3.5155977204985351e+00,  3.5155977204985343e+00,
+                           2.1727588820397470e+00, -2.7755575615628914e-16,
+                          -2.1727588820397479e+00, -3.5155977204985338e+00,
+                          -3.5155977204985334e+00, -2.1727588820397470e+00,
+                          -3.8674719419474768e-01])
     b_actual = np.zeros(nx + 1)
 
     meshcoords_ordered = np.linspace(0., 1., nx + 1)
@@ -196,13 +199,12 @@ def test_solve_prior_covariance_parallel():
     C_expected = np.linalg.solve(ab, C_expected)
     C_expected = np.dot(interp.T, C_expected)
 
-    x = Function(V)
-    solve(A, x, b)
-
-    m_expected = np.dot(interp.T, x.vector().gather())
+    u = Function(V)
+    solve(A, u, b)
+    m_expected = np.dot(interp.T, u.vector().gather())
 
     if my_ensemble.comm.rank == 0 and my_ensemble.ensemble_comm.rank == 0:
-        assert_allclose(m_expected, mu)
+        assert_allclose(m_expected, mu, atol = 1.e-10)
         assert_allclose(C_expected, Cu, atol = 1.e-10)
     else:
         assert mu.shape == (0,)

@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import cho_factor, cho_solve
 from firedrake import COMM_WORLD, COMM_SELF
 from firedrake.function import Function
 from firedrake.matrix import Matrix
@@ -57,12 +58,13 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
         # invert model discrepancy and interpolate into mesh space
 
-        tmp_dataspace_1 = np.linalg.solve(Ks, data.get_data())
+        LK = cho_factor(Ks)
+        tmp_dataspace_1 = cho_solve(LK, data.get_data())
         tmp_meshspace_1 = im.interp_data_to_mesh(tmp_dataspace_1)
 
         # solve forcing covariance and interpolate to dataspace
 
-        tmp_meshspace_2 = _solve_forcing_covariance(G, A, tmp_meshspace_1)+x.vector()
+        tmp_meshspace_2 = rho*_solve_forcing_covariance(G, A, tmp_meshspace_1)+x.vector()
         tmp_dataspace_1 = im.interp_mesh_to_data(tmp_meshspace_2)
 
     else:
@@ -73,8 +75,8 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
     # solve model discrepancy plus forcing covariance system and interpolate into meshspace
     # (done on all ensemble processes)
 
-    tmp_dataspace_2 = np.linalg.solve(Ks + im.interp_covariance_to_data(G, A, ensemble_comm),
-                                      tmp_dataspace_1)
+    L = cho_factor(Ks/rho**2 + im.interp_covariance_to_data(G, A, ensemble_comm))
+    tmp_dataspace_2 = cho_solve(L, tmp_dataspace_1)
 
     # interpolate back onto FEM mesh
 
@@ -129,19 +131,22 @@ def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
     muy, Cuy = solve_prior_covariance(A, b, G, data, params, ensemble_comm)
 
     if ensemble_comm.rank == 0:
-        Kinv = np.linalg.inv(M.get_K_plus_sigma(params[1:]))
-        Cinv = np.linalg.inv(Cuy)
-        Cuy = np.linalg.inv(Cinv + Kinv)
+        LK = cho_factor(data.get_K_plus_sigma(params[1:]))
+        Kinv = cho_solve(LK, np.eye(data.get_n_obs()))
+        LC = cho_factor(Cuy)
+        Cinv = cho_solve(LC, np.eye(data.get_n_obs()))
+        L = cho_factor(Cinv + rho**2*Kinv)
+        Cuy = cho_solve(L, np.eye(data.get_n_obs()))
 
         # get posterior mean
 
-        muy = np.dot(Cuy, np.dot(Kinv, data.get_data()) + np.dot(Cinv, muy))
+        muy = cho_solve(L, rho**2*cho_solve(LK, data.get_data()/rho) + cho_solve(LC, muy))
 
     return muy, Cuy
 
 def solve_prior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
     """
-    solve base (prior) fem plus covariance in the data space
+    solve base (prior) fem plus covariance interpolated to the data locations
 
     note that unlike the meshspace solver, this uses a return value rather than a
     Firedrake/PETSc style interface to create the solution. I was unable to get this
@@ -149,9 +154,9 @@ def solve_prior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
     the user to pre-set the array sizes (the arrays are different sizes on the processes,
     as the solution is collected at the root of both the spatial comm and the ensemble comm)
 
-    Note that since the data locations are needed to form the interpolation matrix and the
-    scaling factor rho is needed to scale the model to observations, the observations and
-    parameters are still required nonetheless.
+    Note that since the data locations are needed, this still requires an ObsData object.
+    The parameters are not used but are included here to keep the interfaces consistent
+    across all solver routines
     """
 
     if not isinstance(A, Matrix):
@@ -176,17 +181,16 @@ def solve_prior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
 
     # solve base FEM (prior mean) and interpolate to data space
 
-    x = Function(G.function_space)
-
     if ensemble_comm.rank == 0:
+        x = Function(G.function_space)
         solve(A, x, b)
-        mu = rho*im.interp_mesh_to_data(x.vector())
+        mu = im.interp_mesh_to_data(x.vector())
     else:
         mu = np.zeros(0)
 
     # form interpolated prior covariance and solve for posterior covariance
 
-    Cu = rho**2*im.interp_covariance_to_data(G, A, ensemble_comm)
+    Cu = im.interp_covariance_to_data(G, A, ensemble_comm)
 
     im.destroy()
 
