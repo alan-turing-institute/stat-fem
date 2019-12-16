@@ -43,10 +43,14 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
     # create numpy arrays for Ks matrix with appropriate sizes
 
-    if ensemble_comm.rank == 0:
+    if ensemble_comm.rank == 0 and G.comm.rank == 0:
         Ks = data.calc_K_plus_sigma(params[1:])
+        LK = cho_factor(Ks)
+        y = data.get_data()
     else:
-        Ks = np.zeros((0,0))
+        Ks = np.zeros((0, 0))
+        LK = np.zeros((0, 0))
+        y = np.zeros(0)
 
     # first steps are done on root of ensemble only
 
@@ -58,8 +62,7 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
         # invert model discrepancy and interpolate into mesh space
 
-        LK = cho_factor(Ks)
-        tmp_dataspace_1 = cho_solve(LK, data.get_data())
+        tmp_dataspace_1 = cho_solve(LK, y)
         tmp_meshspace_1 = im.interp_data_to_mesh(tmp_dataspace_1)
 
         # solve forcing covariance and interpolate to dataspace
