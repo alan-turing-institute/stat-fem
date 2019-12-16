@@ -9,61 +9,23 @@ from firedrake.functionspace import FunctionSpace, VectorFunctionSpace
 from firedrake.interpolation import interpolate
 from firedrake.petsc import PETSc
 from firedrake.ufl_expr import TestFunction, TrialFunction
+from firedrake import COMM_WORLD
 from ufl import dx, dot, grad
 import pytest
 from ..ForcingCovariance import ForcingCovariance
 from ..solving_utils import _solve_forcing_covariance
+from .test_shared import create_assembled_problem, create_forcing_covariance, create_problem_numpy
 
 def test_solve_forcing_covariance():
     "test solve_forcing_covariance"
 
     nx = 10
 
-    mesh = UnitIntervalMesh(nx)
-    V = FunctionSpace(mesh, "CG", 1)
-    u = TrialFunction(V)
-    v = TestFunction(V)
-    a = dot(grad(u), grad(v))*dx
-    bc = DirichletBC(V, 0., "on_boundary")
-    A = assemble(a, bcs=bc)
+    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
 
-    sigma = 1.
-    l = 0.1
-    cutoff = 0.
-    regularization = 1.e-8
+    fc, cov = create_forcing_covariance(mesh, V)
 
-    W = VectorFunctionSpace(mesh, V.ufl_element())
-    X = interpolate(mesh.coordinates, W)
-    meshcoords = X.vector().gather()
-
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
-    basis = fc._integrate_basis_functions()
-
-    fc.assemble()
-
-    r = cdist(np.reshape(meshcoords, (-1, 1)), np.reshape(meshcoords, (-1, 1)))
-    cov = (np.outer(basis, basis)*sigma**2*np.exp(-0.5*r**2/l**2) +
-           np.eye(nx + 1)*regularization)
-
-    ab_ordered = np.array([[  1.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,  20., -10.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0., -10.,  20., -10.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,   0., -10.,  20., -10.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,   0.,   0., -10.,  20., -10.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,   0.,   0.,   0., -10.,  20., -10.,   0.,   0.,   0.,   0.],
-                           [  0.,   0.,   0.,   0.,   0., -10.,  20., -10.,   0.,   0.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0., -10.,  20., -10.,   0.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0.,   0., -10.,  20., -10.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0., -10.,  20.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   1.]])
-    ab = np.zeros((nx + 1, nx + 1))
-
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
-
-    for i in range(nx + 1):
-        for j in range(nx + 1):
-            ab[np.where(meshcoords == meshcoords_ordered[i]),
-               np.where(meshcoords == meshcoords_ordered[j])] = ab_ordered[i, j]
+    ab, _ = create_problem_numpy(mesh, V)
 
     rhs = Function(V).vector()
     rhs.set_local(np.ones(fc.get_nx_local()))

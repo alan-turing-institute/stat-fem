@@ -14,6 +14,8 @@ from firedrake.ufl_expr import TestFunction, TrialFunction
 from ufl import dx, dot, grad
 from ..InterpolationMatrix import InterpolationMatrix, interpolate_cell
 from ..ForcingCovariance import ForcingCovariance
+from .test_shared import create_interp, create_assembled_problem, create_forcing_covariance
+from .test_shared import create_problem_numpy
 
 def test_InterpolationMatrix():
     "test InterpolationMatrix with multiple processes"
@@ -89,17 +91,7 @@ def test_InterpolationMatrix_assemble():
 
     assert im.is_assembled
 
-    meshcoords = V.mesh().coordinates.vector().gather()
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
-
-    interp_ordered = np.transpose(np.array([[0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.],
-                                            [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
-                                            [0., 0., 0.5, 0.5, 0., 0., 0., 0., 0., 0., 0.],
-                                            [0., 0.75, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.]]))
-    interp_expected = np.zeros((nx + 1, nd))
-
-    for i in range(nx + 1):
-        interp_expected[np.where(meshcoords == meshcoords_ordered[i]),:] = interp_ordered[i,:]
+    interp_expected = create_interp(mesh, V)
 
     imin, imax = im.interp.getOwnershipRange()
 
@@ -262,65 +254,18 @@ def test_InterpolationMatrix_interp_covariance_to_data():
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
     nd = len(coords)
 
-    mesh = UnitIntervalMesh(nx)
-    V = FunctionSpace(mesh, "CG", 1)
+    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
 
     im = InterpolationMatrix(V, coords)
     im.assemble()
 
     assert im.is_assembled
 
-    meshcoords = V.mesh().coordinates.vector().gather()
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
+    interp_expected = create_interp(mesh, V)
 
-    interp_ordered = np.transpose(np.array([[0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.],
-                                            [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
-                                            [0., 0., 0.5, 0.5, 0., 0., 0., 0., 0., 0., 0.],
-                                            [0., 0.75, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.]]))
-    interp_expected = np.zeros((nx + 1, nd))
+    fc, cov = create_forcing_covariance(mesh, V)
 
-    for i in range(nx + 1):
-        interp_expected[np.where(meshcoords == meshcoords_ordered[i]),:] = interp_ordered[i,:]
-
-    u = TrialFunction(V)
-    v = TestFunction(V)
-    a = dot(grad(u), grad(v))*dx
-    bc = DirichletBC(V, 0., "on_boundary")
-    A = assemble(a, bcs=bc)
-
-    sigma = 1.
-    l = 0.1
-    cutoff = 0.
-    regularization = 1.e-8
-
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
-    basis = fc._integrate_basis_functions()
-
-    fc.assemble()
-
-    r = cdist(np.reshape(meshcoords, (-1, 1)), np.reshape(meshcoords, (-1, 1)))
-    cov = (np.outer(basis, basis)*sigma**2*np.exp(-0.5*r**2/l**2) +
-           np.eye(nx + 1)*regularization)
-
-    ab_ordered = np.array([[  1.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,  20., -10.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0., -10.,  20., -10.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,   0., -10.,  20., -10.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,   0.,   0., -10.,  20., -10.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,   0.,   0.,   0., -10.,  20., -10.,   0.,   0.,   0.,   0.],
-                           [  0.,   0.,   0.,   0.,   0., -10.,  20., -10.,   0.,   0.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0., -10.,  20., -10.,   0.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0.,   0., -10.,  20., -10.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0., -10.,  20.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   1.]])
-    ab = np.zeros((nx + 1, nx + 1))
-
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
-
-    for i in range(nx + 1):
-        for j in range(nx + 1):
-            ab[np.where(meshcoords == meshcoords_ordered[i]),
-               np.where(meshcoords == meshcoords_ordered[j])] = ab_ordered[i, j]
+    ab, b = create_problem_numpy(mesh, V)
 
     result_expected = np.linalg.solve(ab, interp_expected)
     result_expected = np.dot(cov, result_expected)
@@ -347,65 +292,18 @@ def test_InterpolationMatrix_interp_covariance_to_data_ensemble():
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
     nd = len(coords)
 
-    mesh = UnitIntervalMesh(nx, comm=my_ensemble.comm)
-    V = FunctionSpace(mesh, "CG", 1)
+    A, b, mesh, V = create_assembled_problem(nx, my_ensemble.comm)
 
     im = InterpolationMatrix(V, coords)
     im.assemble()
 
     assert im.is_assembled
 
-    meshcoords = V.mesh().coordinates.vector().gather()
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
+    interp_expected = create_interp(mesh, V)
 
-    interp_ordered = np.transpose(np.array([[0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.],
-                                            [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
-                                            [0., 0., 0.5, 0.5, 0., 0., 0., 0., 0., 0., 0.],
-                                            [0., 0.75, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.]]))
-    interp_expected = np.zeros((nx + 1, nd))
+    fc, cov = create_forcing_covariance(mesh, V)
 
-    for i in range(nx + 1):
-        interp_expected[np.where(meshcoords == meshcoords_ordered[i]),:] = interp_ordered[i,:]
-
-    u = TrialFunction(V)
-    v = TestFunction(V)
-    a = dot(grad(u), grad(v))*dx
-    bc = DirichletBC(V, 0., "on_boundary")
-    A = assemble(a, bcs=bc)
-
-    sigma = 1.
-    l = 0.1
-    cutoff = 0.
-    regularization = 1.e-8
-
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
-    basis = fc._integrate_basis_functions()
-
-    fc.assemble()
-
-    r = cdist(np.reshape(meshcoords, (-1, 1)), np.reshape(meshcoords, (-1, 1)))
-    cov = (np.outer(basis, basis)*sigma**2*np.exp(-0.5*r**2/l**2) +
-           np.eye(nx + 1)*regularization)
-
-    ab_ordered = np.array([[  1.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,  20., -10.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0., -10.,  20., -10.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,   0., -10.,  20., -10.,   0.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,   0.,   0., -10.,  20., -10.,   0.,   0.,   0.,   0.,   0.],
-                           [  0.,   0.,   0.,   0., -10.,  20., -10.,   0.,   0.,   0.,   0.],
-                           [  0.,   0.,   0.,   0.,   0., -10.,  20., -10.,   0.,   0.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0., -10.,  20., -10.,   0.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0.,   0., -10.,  20., -10.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0., -10.,  20.,   0.],
-                           [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   1.]])
-    ab = np.zeros((nx + 1, nx + 1))
-
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
-
-    for i in range(nx + 1):
-        for j in range(nx + 1):
-            ab[np.where(meshcoords == meshcoords_ordered[i]),
-               np.where(meshcoords == meshcoords_ordered[j])] = ab_ordered[i, j]
+    ab, b = create_problem_numpy(mesh, V)
 
     result_expected = np.linalg.solve(ab, interp_expected)
     result_expected = np.dot(cov, result_expected)
@@ -414,7 +312,7 @@ def test_InterpolationMatrix_interp_covariance_to_data_ensemble():
 
     result_actual = im.interp_covariance_to_data(fc, A, my_ensemble.ensemble_comm)
 
-    if COMM_WORLD.rank == 0:
+    if my_ensemble.comm.rank == 0 and my_ensemble.ensemble_comm.rank == 0:
         assert_allclose(result_expected, result_actual, atol=1.e-10)
     else:
         assert result_actual.shape == (0, 0)

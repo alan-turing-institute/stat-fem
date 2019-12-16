@@ -10,6 +10,7 @@ from firedrake.interpolation import interpolate
 from firedrake.petsc import PETSc
 import pytest
 from ..ForcingCovariance import ForcingCovariance
+from .test_shared import create_forcing_covariance
 
 def test_ForcingCovariance_init():
     "test init method of ForcingCovariance"
@@ -103,17 +104,9 @@ def test_ForcingCovariance_compute_G_vals():
     cutoff = 0.
     regularization = 1.e-8
 
-    W = VectorFunctionSpace(mesh, V.ufl_element())
-    X = interpolate(mesh.coordinates, W)
-    meshcoords = X.vector().gather()
-
     fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
 
-    basis = fc._integrate_basis_functions()
-
-    r = cdist(np.reshape(meshcoords, (-1, 1)), np.reshape(meshcoords, (-1, 1)))
-    cov_expected = (np.outer(basis, basis)*sigma**2*np.exp(-0.5*r**2/l**2) +
-                    np.eye(nx + 1)*regularization)
+    _, cov_expected = create_forcing_covariance(mesh, V)
     nnz_expected = [nx + 1]*(fc.local_endind - fc.local_startind)
 
     G_dict, nnz = fc._compute_G_vals()
@@ -137,20 +130,13 @@ def test_ForcingCovariance_assemble():
     cutoff = 0.
     regularization = 1.e-8
 
-    W = VectorFunctionSpace(mesh, V.ufl_element())
-    X = interpolate(mesh.coordinates, W)
-    meshcoords = X.vector().gather()
-
     fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
-    basis = fc._integrate_basis_functions()
-
-    r = cdist(np.reshape(meshcoords, (-1, 1)), np.reshape(meshcoords, (-1, 1)))
-    cov_expected = (np.outer(basis, basis)*sigma**2*np.exp(-0.5*r**2/l**2) +
-                    np.eye(nx + 1)*regularization)
 
     fc.assemble()
 
     assert fc.is_assembled
+
+    _, cov_expected = create_forcing_covariance(mesh, V)
 
     for i in range(fc.local_startind, fc.local_endind):
         for j in range(0, nx + 1):
@@ -170,16 +156,9 @@ def test_ForcingCovariance_mult():
     cutoff = 0.
     regularization = 1.e-8
 
-    W = VectorFunctionSpace(mesh, V.ufl_element())
-    X = interpolate(mesh.coordinates, W)
-    meshcoords = X.vector().gather()
-
     fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
-    basis = fc._integrate_basis_functions()
 
-    r = cdist(np.reshape(meshcoords, (-1, 1)), np.reshape(meshcoords, (-1, 1)))
-    cov_expected = (np.outer(basis, basis)*sigma**2*np.exp(-0.5*r**2/l**2) +
-                    np.eye(nx + 1)*regularization)
+    _, cov_expected = create_forcing_covariance(mesh, V)
 
     fc.assemble()
 
