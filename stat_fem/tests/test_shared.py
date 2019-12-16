@@ -124,3 +124,13 @@ def create_interp(mesh, V):
 
     return interp
 
+def create_K_plus_sigma(sigma, l):
+    "create shared model discrepancy matrix with measurement error"
+
+    coords = np.array([[0.75], [0.5], [0.25], [0.125]])
+    unc = 0.1
+
+    r = cdist(coords, coords)
+    K = sigma*np.exp(-0.5*r**2/l**2)+np.eye(len(coords))*unc**2
+
+    return K

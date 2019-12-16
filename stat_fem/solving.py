@@ -106,12 +106,6 @@ def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
 
     if not isinstance(A, Matrix):
        raise TypeError("A must be a firedrake matrix")
-    if not isinstance(muy, np.ndarray):
-        raise TypeError("muy must be a numpy array")
-    if not isinstance(Cuy, np.ndarray):
-        raise TypeError("Cuy must be a numpy array")
-    assert muy.shape == (data.get_n_obs(),), "Bad shape for muy"
-    assert Cuy.shape == (data.get_n_obs(), data.get_n_obs()), "Bad shape for Cuy"
     if not isinstance(b, (Function, Vector)):
         raise TypeError("b must be a firedrake function or vector")
     if not isinstance(G, ForcingCovariance):
@@ -130,8 +124,8 @@ def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
 
     muy, Cuy = solve_prior_covariance(A, b, G, data, params, ensemble_comm)
 
-    if ensemble_comm.rank == 0:
-        LK = cho_factor(data.get_K_plus_sigma(params[1:]))
+    if ensemble_comm.rank == 0 and G.comm.rank == 0:
+        LK = cho_factor(data.calc_K_plus_sigma(params[1:]))
         Kinv = cho_solve(LK, np.eye(data.get_n_obs()))
         LC = cho_factor(Cuy)
         Cinv = cho_solve(LC, np.eye(data.get_n_obs()))

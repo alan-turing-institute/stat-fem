@@ -4,13 +4,8 @@ from .CovarianceFunctions import sqexp
 
 class ObsData(object):
     "class representing Observational Data and discrepancy between model and observations"
-    def __init__(self, coords, data, unc, cov=sqexp, comm=COMM_WORLD):
+    def __init__(self, coords, data, unc, cov=sqexp):
         "create a new ObsData object given data and a covariance function"
-
-        if not isinstance(comm, type(COMM_WORLD)):
-            raise TypeError("comm must be an MPI communicator")
-
-        self.comm = comm
 
         coords = np.array(coords, dtype=np.float64)
 
@@ -25,10 +20,7 @@ class ObsData(object):
 
         data = np.array(data, dtype=np.float64)
         assert data.shape == (self.n_obs,), "data must be a 1D array with the same length as coords"
-        if self.comm.rank == 0:
-            self.data = np.copy(data)
-        else:
-            self.data = np.zeros(0)
+        self.data = np.copy(data)
 
         unc = np.array(unc, dtype=np.float64)
         unc = np.nan_to_num(unc)
@@ -73,22 +65,14 @@ class ObsData(object):
         sigma = params[0]
         l = params[1]
 
-        if self.comm.rank == 0:
-            K = self.cov(self.coords, self.coords, sigma, l)
-        else:
-            K = np.zeros((0,0))
-
-        return K
+        return self.cov(self.coords, self.coords, sigma, l)
 
     def calc_K_plus_sigma(self, params):
         "return model discrepancy covariance plus observational data error"
 
-        if self.comm.rank == 0:
-            if self.unc.shape == ():
-                sigma_dat = np.eye(self.n_obs)*self.unc**2
-            else:
-                sigma_dat = np.diag(self.unc**2)
+        if self.unc.shape == ():
+            sigma_dat = np.eye(self.n_obs)*self.unc**2
         else:
-            sigma_dat = np.zeros((0, 0))
+            sigma_dat = np.diag(self.unc**2)
 
         return self.calc_K(params) + sigma_dat

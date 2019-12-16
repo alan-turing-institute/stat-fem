@@ -16,10 +16,7 @@ def test_ObsData_init():
     od = ObsData(coords, data, unc)
 
     assert_allclose(od.coords, np.reshape(coords, (-1, 1)))
-    if COMM_WORLD.rank == 0:
-        assert_allclose(od.data, data)
-    else:
-        assert od.data.shape == (0,)
+    assert_allclose(od.data, data)
     assert_allclose(od.unc, unc)
     assert od.n_dim == 1
     assert od.n_obs == 3
@@ -32,10 +29,7 @@ def test_ObsData_init():
     od = ObsData(coords, data, unc)
 
     assert_allclose(od.coords, coords)
-    if COMM_WORLD.rank == 0:
-        assert_allclose(od.data, data)
-    else:
-        assert od.data.shape == (0,)
+    assert_allclose(od.data, data)
     assert_allclose(od.unc, unc)
     assert od.n_dim == 2
     assert od.n_obs == 3
@@ -47,10 +41,7 @@ def test_ObsData_init():
     od = ObsData(coords, data, unc)
 
     assert_allclose(od.coords, coords)
-    if COMM_WORLD.rank == 0:
-        assert_allclose(od.data, data)
-    else:
-        assert od.data.shape == (0,)
+    assert_allclose(od.data, data)
     assert_allclose(od.unc, 0.)
     assert od.n_dim == 2
     assert od.n_obs == 3
@@ -94,11 +85,6 @@ def test_ObsData_init_failures():
     with pytest.raises(AssertionError):
         od = ObsData(coords, data, unc)
 
-    unc = 1.
-
-    with pytest.raises(TypeError):
-        od = ObsData(coords, data, unc, comm=1.)
-
 def test_ObsData_calc_K():
     "test the calc_K method of ObsData"
 
@@ -112,11 +98,8 @@ def test_ObsData_calc_K():
 
     od = ObsData(coords, data, unc)
 
-    if COMM_WORLD.rank == 0:
-        r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
-        K = sigma**2*np.exp(-0.5*r**2/l**2)
-    else:
-        K = np.zeros((0,0))
+    r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
+    K = sigma**2*np.exp(-0.5*r**2/l**2)
 
     assert_allclose(od.calc_K(params), K)
 
@@ -143,11 +126,8 @@ def test_ObsData_calc_K_plus_sigma():
 
     od = ObsData(coords, data, unc)
 
-    if COMM_WORLD.rank == 0:
-        r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
-        K = sigma**2*np.exp(-0.5*r**2/l**2) + np.eye(3)*unc**2
-    else:
-        K = np.zeros((0,0))
+    r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
+    K = sigma**2*np.exp(-0.5*r**2/l**2) + np.eye(3)*unc**2
 
     assert_allclose(od.calc_K_plus_sigma(params), K)
 
@@ -193,10 +173,7 @@ def test_ObsData_get_data():
 
     od = ObsData(coords, data, unc)
 
-    if COMM_WORLD.rank == 0:
-        assert_allclose(od.get_data(), data)
-    else:
-        assert od.get_data().shape == (0,)
+    assert_allclose(od.get_data(), data)
 
 def test_ObsData_get_unc():
     "test the get_unc method of ObsData"

@@ -10,6 +10,7 @@ from ..ForcingCovariance import ForcingCovariance
 from ..ObsData import ObsData
 from .test_shared import create_assembled_problem, create_interp
 from .test_shared import create_obs_data, create_problem_numpy, create_forcing_covariance
+from .test_shared import create_K_plus_sigma
 
 def test_solve_posterior():
     "test solve_conditioned_FEM"
@@ -17,9 +18,34 @@ def test_solve_posterior():
     pass
 
 def test_solve_posterior_covariance():
-    "test solve_conditioned_FEM"
+    "test solve_posterior_covariance"
 
-    pass
+    nx = 10
+
+    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
+
+    fc, cov = create_forcing_covariance(mesh, V)
+
+    od = create_obs_data()
+
+    ab, _ = create_problem_numpy(mesh, V)
+
+    interp = create_interp(mesh, V)
+
+    mu, Cu = solve_prior_covariance(A, b, fc, od, np.ones(3))
+    muy, Cuy = solve_posterior_covariance(A, b, fc, od, np.ones(3))
+
+    Kinv = np.linalg.inv(create_K_plus_sigma(1., 1.))
+
+    if COMM_WORLD.rank == 0:
+        Cuy_expected = np.linalg.inv(np.linalg.inv(Cu) + Kinv)
+        muy_expected = np.dot(Cuy_expected, np.dot(Kinv, od.get_data()) +
+                                            np.linalg.solve(Cu, mu))
+        assert_allclose(muy, muy_expected, atol=1.e-10)
+        assert_allclose(Cuy, Cuy_expected, atol=1.e-10)
+    else:
+        assert muy.shape == (0,)
+        assert Cuy.shape == (0, 0)
 
 def test_solve_prior_covariance():
     "test solve_conditioned_FEM"
