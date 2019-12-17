@@ -280,12 +280,19 @@ def test_InterpolationMatrix_interp_covariance_to_data():
         assert result_actual.shape == (0, 0)
 
 @pytest.mark.mpi
-def test_InterpolationMatrix_interp_covariance_to_data_ensemble():
+def test_InterpolationMatrix_interp_covariance_to_data_ensemble_1():
+    helper_InterpolationMatrix_interp_covariance_to_data_ensemble(1)
+
+@pytest.mark.mpi
+def test_InterpolationMatrix_interp_covariance_to_data_ensemble_2():
+    helper_InterpolationMatrix_interp_covariance_to_data_ensemble(2)
+
+def helper_InterpolationMatrix_interp_covariance_to_data_ensemble(n_proc):
     "test the interp_covariance_to_data method"
 
     # simple 1D test
 
-    my_ensemble = Ensemble(COMM_WORLD, 2)
+    my_ensemble = Ensemble(COMM_WORLD, n_proc)
 
     nx = 10
 

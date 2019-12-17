@@ -17,6 +17,10 @@ def _solve_forcing_covariance(G, A, rhs):
     if not isinstance(rhs, Vector):
         raise TypeError("rhs must be a firedrake vector")
 
+    # to investigate: I couldn't get this to work when only one ensemble
+    # process calls it, so we do some unnecessary solves with all zeros
+    # explore how this can be fixed
+
     ksp = PETSc.KSP().create()
     ksp.setOperators(A.petscmat)
     ksp.setFromOptions()

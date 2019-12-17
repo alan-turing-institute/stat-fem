@@ -60,7 +60,7 @@ def create_obs_data():
     "create observational data object used in tests"
 
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
-    data = np.array([2., 3., 4., 5.])
+    data = np.array([-1.185, -0.06286, 0.8934, 0.7962])
     unc = 0.1
     od = ObsData(coords, data, unc)
 
