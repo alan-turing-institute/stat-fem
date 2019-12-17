@@ -13,11 +13,11 @@ install:
   - activate="source /home/firedrake/firedrake/bin/activate"
   - src_dir="/home/firedrake/firedrake/src/"
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-  - docker exec $container_name bash -c "$activate; cd $src_dir; git clone --branch=$BRANCH https://github.com/alan-turing-institute/stat-fem.git; cd stat-fem; python setup.py install; pip install pytest-cov"
+  - docker exec $container_name bash -c "$activate; cd $src_dir; git clone --branch=$BRANCH https://github.com/alan-turing-institute/stat-fem.git; cd stat-fem; python setup.py install; pip install pytest-cov pytest-mpi"
 script:
-  - docker exec $container_name bash -c "$activate; cd ${src_dir}stat-fem; pytest --cov=stat_fem/"
+  - docker exec $container_name bash -c "$activate; cd ${src_dir}stat-fem/stat_fem/tests/; make tests"
 after_success:
-  - docker cp $container_name:${src_dir}stat-fem/.coverage .
+  - docker cp $container_name:${src_dir}stat-fem/stat_fem/tests/.coverage .
   - token="a709d4d8-f453-4903-975e-0d028ac9602d"
   - bash <(curl -s https://codecov.io/bash) -t token
 after_script:
