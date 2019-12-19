@@ -92,21 +92,16 @@ def test_ObsData_calc_K():
     data = np.array([1., 2., 3.])
     unc = 0.1
 
-    params = np.ones(2)
-    sigma = 1.
-    l = 1.
+    params = np.log(np.ones(2))
+    sigma = params[0]
+    l = params[1]
 
     od = ObsData(coords, data, unc)
 
     r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
-    K = sigma**2*np.exp(-0.5*r**2/l**2)
+    K = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)
 
     assert_allclose(od.calc_K(params), K)
-
-    # fails if parameter is negative
-
-    with pytest.raises(AssertionError):
-        od.calc_K(np.zeros(2))
 
     # fails if params has wrong length
 
@@ -120,16 +115,37 @@ def test_ObsData_calc_K_plus_sigma():
     data = np.array([1., 2., 3.])
     unc = 0.1
 
-    params = np.ones(2)
-    sigma = 1.
-    l = 1.
+    params = np.log(np.ones(2))
+    sigma = params[0]
+    l = params[1]
 
     od = ObsData(coords, data, unc)
 
     r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
-    K = sigma**2*np.exp(-0.5*r**2/l**2) + np.eye(3)*unc**2
+    K = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2) + np.eye(3)*unc**2
 
     assert_allclose(od.calc_K_plus_sigma(params), K)
+
+def test_ObsData_calc_K_deriv():
+    "test the calc_K_deriv method of ObsData"
+
+    coords = np.array([[2., 1.], [0., 2.], [1., 1.]])
+    data = np.array([1., 2., 3.])
+    unc = 0.1
+
+    params = np.log(np.ones(2))
+    sigma = params[0]
+    l = params[1]
+
+    od = ObsData(coords, data, unc)
+
+    r = np.array([[0., np.sqrt(5.), 1.], [np.sqrt(5.), 0., np.sqrt(2.)], [1., np.sqrt(2.), 0.]])
+
+    f_expected = np.zeros((2, 3, 3))
+    f_expected[0] = 2.*np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)
+    f_expected[1] = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)*r**2/np.exp(l)**2
+
+    assert_allclose(od.calc_K_deriv(params), f_expected)
 
 def test_ObsData_get_n_dim():
     "test the get_n_dim method of ObsData"

@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.linalg import cho_factor, cho_solve
+from scipy.linalg import LinAlgError
 from firedrake import COMM_WORLD, COMM_SELF
 from firedrake.constant import Constant
 from firedrake.function import Function
@@ -36,8 +37,7 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
     params = np.array(params, dtype=np.float64)
     assert params.shape == (3,), "bad shape for model discrepancy parameters"
-    rho = params[0]
-    assert rho > 0., "model/data scaling factor must be positive"
+    rho = np.exp(params[0])
 
     # create interpolation matrix
 
@@ -60,7 +60,11 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
     if ensemble_comm.rank == 0 and G.comm.rank == 0:
         Ks = data.calc_K_plus_sigma(params[1:])
-        LK = cho_factor(Ks)
+        try:
+            LK = cho_factor(Ks)
+        except LinAlgError:
+            raise LinAlgError("Error attempting to compute the Cholesky factorization " +
+                              "of the model discrepancy")
         tmp_dataspace_1 = cho_solve(LK, data.get_data())
     elif G.comm.rank == 0:
         tmp_dataspace_1 = np.zeros(data.get_n_obs())
@@ -80,7 +84,11 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
     tmp_dataspace_1 = im.interp_mesh_to_data(tmp_meshspace_2)
 
     if ensemble_comm.rank == 0 and G.comm.rank == 0:
-        L = cho_factor(Ks/rho**2 + Cu)
+        try:
+            L = cho_factor(Ks/rho**2 + Cu)
+        except LinAlgError:
+            raise LinAlgError("Error attempting to compute the Cholesky factorization " +
+                              "of the model discrepancy plus forcing covariance")
         tmp_dataspace_2 = cho_solve(L, tmp_dataspace_1)
     elif G.comm.rank == 0:
         tmp_dataspace_2 = np.zeros(data.get_n_obs())
@@ -123,20 +131,22 @@ def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
 
     params = np.array(params, dtype=np.float64)
     assert params.shape == (3,), "bad shape for model discrepancy parameters"
-    rho = params[0]
-    assert rho > 0., "model/data scaling factor must be positive"
+    rho = np.exp(params[0])
 
     # get prior solution
 
     muy, Cuy = solve_prior_covariance(A, b, G, data, params, ensemble_comm)
 
     if ensemble_comm.rank == 0 and G.comm.rank == 0:
-        LK = cho_factor(data.calc_K_plus_sigma(params[1:]))
-        Kinv = cho_solve(LK, np.eye(data.get_n_obs()))
-        LC = cho_factor(Cuy)
-        Cinv = cho_solve(LC, np.eye(data.get_n_obs()))
-        L = cho_factor(Cinv + rho**2*Kinv)
-        Cuy = cho_solve(L, np.eye(data.get_n_obs()))
+        try:
+            LK = cho_factor(data.calc_K_plus_sigma(params[1:]))
+            Kinv = cho_solve(LK, np.eye(data.get_n_obs()))
+            LC = cho_factor(Cuy)
+            Cinv = cho_solve(LC, np.eye(data.get_n_obs()))
+            L = cho_factor(Cinv + rho**2*Kinv)
+            Cuy = cho_solve(L, np.eye(data.get_n_obs()))
+        except LinAlgError:
+            raise LinAlgError("Cholesky factorization of one of the covariance matrices failed")
 
         # get posterior mean
 
@@ -172,11 +182,6 @@ def solve_prior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
     if not isinstance(ensemble_comm, type(COMM_WORLD)):
         raise TypeError("ensemble_comm must be an MPI communicator created with a firedrake Ensemble")
 
-    params = np.array(params, dtype=np.float64)
-    assert params.shape == (3,), "bad shape for model discrepancy parameters"
-    rho = params[0]
-    assert rho > 0., "model/data scaling factor must be positive"
-
     # create interpolation matrix
 
     im = InterpolationMatrix(G.function_space, data.get_coords())
@@ -185,13 +190,18 @@ def solve_prior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
 
     Cu = im.interp_covariance_to_data(G, A, ensemble_comm)
 
-    # solve base FEM (prior mean) and interpolate to data space on ensemble root
+    # solve base FEM (prior mean) and interpolate to data space
+
+    x = Function(G.function_space)
 
     if ensemble_comm.rank == 0:
-        x = Function(G.function_space)
         solve(A, x, b)
-        mu = im.interp_mesh_to_data(x.vector())
     else:
+        x.assign(Constant(0.))
+
+    mu = im.interp_mesh_to_data(x.vector())
+
+    if not (ensemble_comm.rank == 0 and G.comm.rank == 0):
         mu = np.zeros(0)
 
     im.destroy()

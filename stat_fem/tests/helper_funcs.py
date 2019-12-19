@@ -40,8 +40,8 @@ def create_forcing_covariance(mesh, V):
 
     meshcoords = create_meshcoords(mesh, V)
 
-    sigma = 1.
-    l = 0.1
+    sigma = np.log(1.)
+    l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
@@ -49,7 +49,7 @@ def create_forcing_covariance(mesh, V):
     basis = fc._integrate_basis_functions()
 
     r = cdist(np.reshape(meshcoords, (-1, 1)), np.reshape(meshcoords, (-1, 1)))
-    cov = (np.outer(basis, basis)*sigma**2*np.exp(-0.5*r**2/l**2) +
+    cov = (np.outer(basis, basis)*np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2) +
            np.eye(nx + 1)*regularization)
 
     fc.assemble()
@@ -131,6 +131,6 @@ def create_K_plus_sigma(sigma, l):
     unc = 0.1
 
     r = cdist(coords, coords)
-    K = sigma*np.exp(-0.5*r**2/l**2)+np.eye(len(coords))*unc**2
+    K = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)+np.eye(len(coords))*unc**2
 
     return K

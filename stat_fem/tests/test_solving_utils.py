@@ -14,7 +14,7 @@ from ufl import dx, dot, grad
 import pytest
 from ..ForcingCovariance import ForcingCovariance
 from ..solving_utils import _solve_forcing_covariance
-from .test_shared import create_assembled_problem, create_forcing_covariance, create_problem_numpy
+from .helper_funcs import create_assembled_problem, create_forcing_covariance, create_problem_numpy
 
 def test_solve_forcing_covariance():
     "test solve_forcing_covariance"

@@ -14,8 +14,8 @@ from firedrake.ufl_expr import TestFunction, TrialFunction
 from ufl import dx, dot, grad
 from ..InterpolationMatrix import InterpolationMatrix, interpolate_cell
 from ..ForcingCovariance import ForcingCovariance
-from .test_shared import create_interp, create_assembled_problem, create_forcing_covariance
-from .test_shared import create_problem_numpy
+from .helper_funcs import create_interp, create_assembled_problem, create_forcing_covariance
+from .helper_funcs import create_problem_numpy
 
 def test_InterpolationMatrix():
     "test InterpolationMatrix with multiple processes"

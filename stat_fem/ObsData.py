@@ -1,10 +1,10 @@
 import numpy as np
 from firedrake import COMM_WORLD, COMM_SELF
-from .CovarianceFunctions import sqexp
+from .CovarianceFunctions import sqexp, sqexp_deriv
 
 class ObsData(object):
     "class representing Observational Data and discrepancy between model and observations"
-    def __init__(self, coords, data, unc, cov=sqexp):
+    def __init__(self, coords, data, unc):
         "create a new ObsData object given data and a covariance function"
 
         coords = np.array(coords, dtype=np.float64)
@@ -27,8 +27,6 @@ class ObsData(object):
         assert unc.shape == (self.n_obs,) or unc.shape == (), "bad shape for unc, must be an array or float"
         assert np.all(unc >= 0.), "all uncertainties must be non-negative"
         self.unc = np.copy(unc)
-
-        self.cov = cov
 
     def get_n_dim(self):
         "returns number of dimensions in FEM model"
@@ -60,12 +58,11 @@ class ObsData(object):
 
         params = np.array(params)
         assert params.shape == (2,), "parameters must have length 2"
-        assert np.all(params > 0.), "parameters must all be positive"
 
         sigma = params[0]
         l = params[1]
 
-        return self.cov(self.coords, self.coords, sigma, l)
+        return sqexp(self.coords, self.coords, sigma, l)
 
     def calc_K_plus_sigma(self, params):
         "return model discrepancy covariance plus observational data error"
@@ -76,3 +73,14 @@ class ObsData(object):
             sigma_dat = np.diag(self.unc**2)
 
         return self.calc_K(params) + sigma_dat
+
+    def calc_K_deriv(self, params):
+        "returns derivative of model discrepancy with respect to the parameters"
+
+        params = np.array(params)
+        assert params.shape == (2,), "parameters must have length 2"
+
+        sigma = params[0]
+        l = params[1]
+
+        return sqexp_deriv(self.coords, self.coords, sigma, l)

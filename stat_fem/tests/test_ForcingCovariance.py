@@ -10,7 +10,7 @@ from firedrake.interpolation import interpolate
 from firedrake.petsc import PETSc
 import pytest
 from ..ForcingCovariance import ForcingCovariance
-from .test_shared import create_forcing_covariance
+from .helper_funcs import create_forcing_covariance
 
 def test_ForcingCovariance_init():
     "test init method of ForcingCovariance"
@@ -24,8 +24,8 @@ def test_ForcingCovariance_init():
 
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
-    sigma = 1.
-    l = 0.1
+    sigma = np.log(1.)
+    l = np.log(0.1)
 
     fc = ForcingCovariance(V, sigma, l)
 
@@ -58,8 +58,8 @@ def test_ForcingCovariance_init_failures():
 
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
-    sigma = 1.
-    l = 0.1
+    sigma = np.log(1.)
+    l = np.log(0.1)
 
     with pytest.raises(TypeError):
         ForcingCovariance(1., sigma, l)
@@ -76,8 +76,8 @@ def test_ForcingCovariance_integrate_basis_functions():
 
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
-    sigma = 1.
-    l = 0.1
+    sigma = np.log(1.)
+    l = np.log(0.1)
 
     fc = ForcingCovariance(V, sigma, l)
 
@@ -99,8 +99,8 @@ def test_ForcingCovariance_compute_G_vals():
 
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
-    sigma = 1.
-    l = 0.1
+    sigma = np.log(1.)
+    l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
@@ -125,8 +125,8 @@ def test_ForcingCovariance_assemble():
 
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
-    sigma = 1.
-    l = 0.1
+    sigma = np.log(1.)
+    l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
@@ -151,8 +151,8 @@ def test_ForcingCovariance_mult():
 
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
-    sigma = 1.
-    l = 0.1
+    sigma = np.log(1.)
+    l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
@@ -180,8 +180,8 @@ def test_ForcingCovariance_get_nx():
 
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
-    sigma = 1.
-    l = 0.1
+    sigma = np.log(1.)
+    l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
@@ -196,8 +196,8 @@ def test_ForcingCovariance_get_nx_local():
 
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
-    sigma = 1.
-    l = 0.1
+    sigma = np.log(1.)
+    l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
@@ -214,8 +214,8 @@ def test_ForcingCovariance_str():
 
     mesh = UnitIntervalMesh(nx)
     V = FunctionSpace(mesh, "CG", 1)
-    sigma = 1.
-    l = 0.1
+    sigma = np.log(1.)
+    l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
