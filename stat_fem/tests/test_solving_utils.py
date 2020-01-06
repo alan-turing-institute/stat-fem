@@ -17,20 +17,20 @@ from ..ForcingCovariance import ForcingCovariance
 from ..solving_utils import _solve_forcing_covariance
 from .helper_funcs import create_assembled_problem, create_forcing_covariance, create_problem_numpy
 
-# def test_solve_forcing_covariance():
-#     "test solve_forcing_covariance"
-#
-#     nx = 10
-#
-#     A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-#
-#     fc, cov = create_forcing_covariance(mesh, V)
-#
-#     ab, _ = create_problem_numpy(mesh, V)
-#
-#     rhs = Function(V).vector()
-#     rhs.set_local(np.ones(fc.get_nx_local()))
-#
+def test_solve_forcing_covariance():
+    "test solve_forcing_covariance"
+
+    nx = 10
+
+    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
+
+    fc, cov = create_forcing_covariance(mesh, V)
+
+    ab, _ = create_problem_numpy(mesh, V)
+
+    rhs = Function(V).vector()
+    rhs.set_local(np.ones(fc.get_nx_local()))
+
 #     result = _solve_forcing_covariance(fc, A, rhs)
 #
 #     result_actual = result.gather()
