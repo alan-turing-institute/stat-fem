@@ -83,7 +83,7 @@ class ForcingCovariance(object):
         for i in range(self.local_startind, self.local_endind):
             diag = (int_basis[i]*int_basis[i]*
                     self.cov(meshvals[i], meshvals[i], self.sigma, self.l)[0,0])
-            G_dict[(i, i)] = diag+self.regularization
+            G_dict[(i, i)] = diag + self.regularization
             current_nnz += 1
             for j in range(0, self.nx):
                 if j == i:

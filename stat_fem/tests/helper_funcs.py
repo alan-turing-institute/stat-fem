@@ -134,3 +134,25 @@ def create_K_plus_sigma(sigma, l):
     K = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)+np.eye(len(coords))*unc**2
 
     return K
+
+def create_interp_2(mesh, V):
+    "create common interpolation matrix"
+
+    nx = 10
+    nd = 5
+
+    meshcoords = create_meshcoords(mesh, V)
+
+    interp_ordered = np.transpose(np.array([[0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.],
+                                            [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+                                            [0., 0., 0.5, 0.5, 0., 0., 0., 0., 0., 0., 0.],
+                                            [0., 0.75, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.],
+                                            [0., 0., 0., 0., 0., 0., 0.75, 0.25, 0., 0., 0.]]))
+    interp = np.zeros((nx + 1, nd))
+
+    meshcoords_ordered = np.linspace(0., 1., nx + 1)
+
+    for i in range(nx + 1):
+        interp[np.where(meshcoords == meshcoords_ordered[i]),:] = interp_ordered[i,:]
+
+    return interp

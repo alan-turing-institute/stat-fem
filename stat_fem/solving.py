@@ -48,58 +48,48 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
     Cu = im.interp_covariance_to_data(G, A, ensemble_comm)
 
-    # solve base FEM (or set function to zero if not root)
+    # remaining solves are just done on ensemble root
 
     if ensemble_comm.rank == 0:
+
         solve(A, x, b)
-    else:
-        x.assign(Constant(0.))
 
-    # solve model discrepancy/data system on root process only
-    # other processes have either a dummy array or zeros, depending on rank
+        if G.comm.rank == 0:
+            Ks = data.calc_K_plus_sigma(params[1:])
+            try:
+                LK = cho_factor(Ks)
+            except LinAlgError:
+                raise LinAlgError("Error attempting to compute the Cholesky factorization " +
+                                  "of the model discrepancy")
+            tmp_dataspace_1 = cho_solve(LK, data.get_data())
+        else:
+            tmp_dataspace_1 = np.zeros(0)
 
-    if ensemble_comm.rank == 0 and G.comm.rank == 0:
-        Ks = data.calc_K_plus_sigma(params[1:])
-        try:
-            LK = cho_factor(Ks)
-        except LinAlgError:
-            raise LinAlgError("Error attempting to compute the Cholesky factorization " +
-                              "of the model discrepancy")
-        tmp_dataspace_1 = cho_solve(LK, data.get_data())
-    elif G.comm.rank == 0:
-        tmp_dataspace_1 = np.zeros(data.get_n_obs())
-    else:
-        tmp_dataspace_1 = np.zeros(0)
+        # interpolate to dataspace
 
-    # interpolate to dataspace
+        tmp_meshspace_1 = im.interp_data_to_mesh(tmp_dataspace_1)
 
-    tmp_meshspace_1 = im.interp_data_to_mesh(tmp_dataspace_1)
+        # solve forcing covariance and interpolate to dataspace
 
-    # solve forcing covariance and interpolate to dataspace
-    # note that I couldn't get this to work running only on one ensemble process
-    # need to examine if this can be fixed
+        tmp_meshspace_2 = _solve_forcing_covariance(G, A, tmp_meshspace_1)._scale(rho) + x.vector()
 
-    tmp_meshspace_2 = _solve_forcing_covariance(G, A, tmp_meshspace_1)._scale(rho) + x.vector()
+        tmp_dataspace_1 = im.interp_mesh_to_data(tmp_meshspace_2)
 
-    tmp_dataspace_1 = im.interp_mesh_to_data(tmp_meshspace_2)
+        if G.comm.rank == 0:
+            try:
+                L = cho_factor(Ks/rho**2 + Cu)
+            except LinAlgError:
+                raise LinAlgError("Error attempting to compute the Cholesky factorization " +
+                                  "of the model discrepancy plus forcing covariance")
+            tmp_dataspace_2 = cho_solve(L, tmp_dataspace_1)
+        else:
+            tmp_dataspace_2 = np.zeros(0)
 
-    if ensemble_comm.rank == 0 and G.comm.rank == 0:
-        try:
-            L = cho_factor(Ks/rho**2 + Cu)
-        except LinAlgError:
-            raise LinAlgError("Error attempting to compute the Cholesky factorization " +
-                              "of the model discrepancy plus forcing covariance")
-        tmp_dataspace_2 = cho_solve(L, tmp_dataspace_1)
-    elif G.comm.rank == 0:
-        tmp_dataspace_2 = np.zeros(data.get_n_obs())
-    else:
-        tmp_dataspace_2 = np.zeros(0)
+        tmp_meshspace_1 = im.interp_data_to_mesh(tmp_dataspace_2)
 
-    tmp_meshspace_1 = im.interp_data_to_mesh(tmp_dataspace_2)
+        tmp_meshspace_1 = _solve_forcing_covariance(G, A, tmp_meshspace_1)
 
-    tmp_meshspace_1 = _solve_forcing_covariance(G, A, tmp_meshspace_1)
-
-    x.assign((tmp_meshspace_2 - tmp_meshspace_1).function)
+        x.assign((tmp_meshspace_2 - tmp_meshspace_1).function)
 
     # deallocate interpolation matrix
 
@@ -135,7 +125,7 @@ def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
 
     # get prior solution
 
-    muy, Cuy = solve_prior_covariance(A, b, G, data, params, ensemble_comm)
+    muy, Cuy = solve_prior_covariance(A, b, G, data, ensemble_comm)
 
     if ensemble_comm.rank == 0 and G.comm.rank == 0:
         try:
@@ -154,7 +144,7 @@ def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
 
     return muy, Cuy
 
-def solve_prior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
+def solve_prior_covariance(A, b, G, data, ensemble_comm=COMM_SELF):
     """
     solve base (prior) fem plus covariance interpolated to the data locations
 
@@ -167,8 +157,6 @@ def solve_prior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
     as the solution is collected at the root of both the spatial comm and the ensemble comm)
 
     Note that since the data locations are needed, this still requires an ObsData object.
-    The parameters are not used but are included here to keep the interfaces consistent
-    across all solver routines
     """
 
     if not isinstance(A, Matrix):
@@ -190,18 +178,14 @@ def solve_prior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
 
     Cu = im.interp_covariance_to_data(G, A, ensemble_comm)
 
-    # solve base FEM (prior mean) and interpolate to data space
+    # solve base FEM (prior mean) and interpolate to data space on root
 
     x = Function(G.function_space)
 
     if ensemble_comm.rank == 0:
         solve(A, x, b)
+        mu = im.interp_mesh_to_data(x.vector())
     else:
-        x.assign(Constant(0.))
-
-    mu = im.interp_mesh_to_data(x.vector())
-
-    if not (ensemble_comm.rank == 0 and G.comm.rank == 0):
         mu = np.zeros(0)
 
     im.destroy()

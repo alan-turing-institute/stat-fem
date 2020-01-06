@@ -147,6 +147,27 @@ def test_ObsData_calc_K_deriv():
 
     assert_allclose(od.calc_K_deriv(params), f_expected)
 
+def test_ObsData_calc_K_deriv_fd():
+    "test the calc_K_deriv method of ObsData with finite differences"
+
+    dx = 1.e-6
+
+    coords = np.array([[2., 1.], [0., 2.], [1., 1.]])
+    data = np.array([1., 2., 3.])
+    unc = 0.1
+
+    params = np.log(np.ones(2))
+    sigma = params[0]
+    l = params[1]
+
+    od = ObsData(coords, data, unc)
+
+    f_expected = np.zeros((2, 3, 3))
+    f_expected[0] = (od.calc_K(params + np.array([dx, 0.])) - od.calc_K(params))/dx
+    f_expected[1] = (od.calc_K(params + np.array([0., dx])) - od.calc_K(params))/dx
+
+    assert_allclose(od.calc_K_deriv(params), f_expected, atol=1.e-5)
+
 def test_ObsData_get_n_dim():
     "test the get_n_dim method of ObsData"
 

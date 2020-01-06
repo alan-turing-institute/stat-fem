@@ -35,7 +35,7 @@ def sqexp_hessian(x1, x2, sigma, l):
     hess[0, 0] = 4.*sqexp(x1, x2, sigma, l)
     hess[0, 1] = 2.*sqexp(x1, x2, sigma, l)*calc_r2(x1, x2)*np.exp(-2.*l)
     hess[1, 0] = np.copy(hess[0, 1])
-    hess[1, 1] = sqexp(x1, x2, sigma, l)*np.exp(-2.*l)*(calc_r2(x1, x2)**2 - 2.*calc_r2(x1, x2))
+    hess[1, 1] = sqexp(x1, x2, sigma, l)*((calc_r2(x1, x2)*np.exp(-2.*l))**2 - 2.*calc_r2(x1, x2)*np.exp(-2.*l))
 
     return hess
 

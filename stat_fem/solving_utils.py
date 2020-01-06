@@ -21,7 +21,7 @@ def _solve_forcing_covariance(G, A, rhs):
     # process calls it, so we do some unnecessary solves with all zeros
     # explore how this can be fixed
 
-    ksp = PETSc.KSP().create()
+    ksp = PETSc.KSP().create(comm=G.comm)
     ksp.setOperators(A.petscmat)
     ksp.setFromOptions()
 

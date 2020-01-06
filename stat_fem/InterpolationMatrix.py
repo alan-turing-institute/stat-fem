@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from firedrake import Function, COMM_SELF
+from firedrake import Function, COMM_SELF, COMM_WORLD
 from firedrake.ensemble import Ensemble
 from firedrake.petsc import PETSc
 from firedrake.functionspace import VectorFunctionSpace
