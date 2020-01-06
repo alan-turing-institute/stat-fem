@@ -6,18 +6,16 @@ from .solving import solve_prior_covariance
 from functools import partial
 from mpi4py import MPI
 
-def model_loglikelihood(params, A, b, G, data, ensemble_comm=COMM_SELF):
+def model_loglikelihood(params, mu, Cu, data):
     "compute the negative log-likelihood for a given model, returning value on all processes"
 
     params = np.array(params, dtype=np.float64)
     assert params.shape == (3,), "bad shape for model discrepancy parameters"
     rho = np.exp(params[0])
 
-    mu, Cu = solve_prior_covariance(A, b, G, data, ensemble_comm)
+    # compute log-likelihood on root process and broadcast
 
-    # compute log-likelihood on root process
-
-    if ensemble_comm.rank == 0 and G.comm.rank == 0:
+    if COMM_WORLD.rank == 0:
         KCu = rho**2*Cu + data.calc_K_plus_sigma(params[1:])
         try:
             L = cho_factor(KCu)
@@ -39,18 +37,16 @@ def model_loglikelihood(params, A, b, G, data, ensemble_comm=COMM_SELF):
 
     return log_like
 
-def model_loglikelihood_deriv(params, A, b, G, data, ensemble_comm=COMM_SELF):
+def model_loglikelihood_deriv(params, mu, Cu, data):
     "compute the gradient of the log-likelihood"
 
     params = np.array(params, dtype=np.float64)
     assert params.shape == (3,), "bad shape for model discrepancy parameters"
     rho = np.exp(params[0])
 
-    mu, Cu = solve_prior_covariance(A, b, G, data, ensemble_comm)
-
     # compute log-likelihood on root process
 
-    if ensemble_comm.rank == 0 and G.comm.rank == 0:
+    if COMM_WORLD.rank == 0:
         KCu = rho**2*Cu + data.calc_K_plus_sigma(params[1:])
         try:
             L = cho_factor(KCu)
@@ -80,31 +76,35 @@ def model_loglikelihood_deriv(params, A, b, G, data, ensemble_comm=COMM_SELF):
 
     return deriv
 
-def create_loglike_functions(A, b, G, data, ensemble_comm=COMM_SELF):
+def create_loglike_functions(mu, Cu, data):
     "bind the provided model ingredients to the log-likelihood functions"
 
-    return (partial(model_loglikelihood, A=A, b=b, G=G, data=data, ensemble_comm=ensemble_comm),
-            partial(model_loglikelihood_deriv, A=A, b=b, G=G, data=data, ensemble_comm=ensemble_comm))
+    return (partial(model_loglikelihood, mu=mu, Cu=Cu, data=data),
+            partial(model_loglikelihood_deriv, mu=mu, Cu=Cu, data=data))
 
-def estimate_params_MLE(A, b, G, data, ensemble_comm=COMM_SELF, start=None, **kwargs):
+def estimate_params_MLE(A, b, G, data, start=None, ensemble_comm=COMM_SELF, **kwargs):
     "use maximum likelihood to estimate parameters using LBFGS"
 
-    loglike_f, loglike_deriv = create_loglike_functions(A, b, G, data, ensemble_comm)
+    mu, Cu = solve_prior_covariance(A, b, G, data, ensemble_comm=ensemble_comm)
 
-    best_param = None
-    best_mll = None
+    loglike_f, loglike_deriv = create_loglike_functions(mu, Cu, data)
 
     if start is None:
-        start = 5.*(np.random.random(3)-0.5)
+        if COMM_WORLD.rank == 0:
+            start = 5.*(np.random.random(3)-0.5)
+        else:
+            start = None
+        start = COMM_WORLD.bcast(start, root=0)
     else:
         assert np.array(start).shape == (3,), "bad shape for starting point"
+
     fmin_dict = minimize(loglike_f, start, method='L-BFGS-B', jac=loglike_deriv, options=kwargs)
 
-    if best_param is None or fmin_dict['fun'] < best_mll:
-        best_param = fmin_dict['x']
-        best_mll = fmin_dict['fun']
+    assert fmin_dict['success'], "minimization routine failed"
 
-    result = (best_mll, best_param)
+    # broadcast result to all processes
+
+    result = (fmin_dict['fun'], fmin_dict['x'])
     root_result = COMM_WORLD.bcast(result, root=0)
     same_result = (np.allclose(root_result[0], result[0]) and np.allclose(root_result[1], result[1]))
     diff_arg = COMM_WORLD.allreduce(int(not same_result), op=MPI.SUM)
@@ -113,4 +113,4 @@ def estimate_params_MLE(A, b, G, data, ensemble_comm=COMM_SELF, start=None, **kw
 
     COMM_WORLD.barrier()
 
-    return best_mll, best_param
+    return root_result
