@@ -23,15 +23,15 @@ def test_solve_forcing_covariance():
     rhs = Function(V).vector()
     rhs.set_local(np.ones(fc.get_nx_local()))
 
-#     result = _solve_forcing_covariance(fc, A, rhs)
-#
-#     result_actual = result.gather()
-#
-#     result_expected = np.linalg.solve(ab, np.ones(nx + 1))
-#     result_expected = np.dot(cov, result_expected)
-#     result_expected = np.linalg.solve(ab, result_expected)
-#
-#     assert_allclose(result_expected, result_actual, atol = 1.e-10)
+    result = _solve_forcing_covariance(fc, A, rhs)
+
+    result_actual = result.gather()
+
+    result_expected = np.linalg.solve(ab, np.ones(nx + 1))
+    result_expected = np.dot(cov, result_expected)
+    result_expected = np.linalg.solve(ab, result_expected)
+
+    assert_allclose(result_expected, result_actual, atol = 1.e-10)
 
 # @pytest.mark.mpi
 # @pytest.mark.parametrize("n_proc", [1, 2])
