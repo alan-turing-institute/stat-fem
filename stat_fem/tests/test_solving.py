@@ -201,44 +201,44 @@ from .helper_funcs import create_K_plus_sigma, create_meshcoords, create_K
 #
 #     fc.destroy()
 #
-# @pytest.mark.mpi
-# @pytest.mark.parametrize("n_proc",[1, 2])
-# def test_solve_prior_covariance_parallel(n_proc):
-#     "test solve_conditioned_FEM"
-#
-#     nx = 10
-#
-#     my_ensemble = Ensemble(COMM_WORLD, n_proc)
-#
-#     A, b, mesh, V = create_assembled_problem(nx, my_ensemble.comm)
-#
-#     fc, cov = create_forcing_covariance(mesh, V)
-#
-#     od = create_obs_data()
-#
-#     ab, _ = create_problem_numpy(mesh, V)
-#
-#     interp = create_interp(mesh, V)
-#
-#     mu, Cu = solve_prior_covariance(A, b, fc, od, my_ensemble.ensemble_comm)
-#
-#     C_expected = np.linalg.solve(ab, interp)
-#     C_expected = np.dot(cov, C_expected)
-#     C_expected = np.linalg.solve(ab, C_expected)
-#     C_expected = np.dot(interp.T, C_expected)
-#
-#     u = Function(V)
-#     solve(A, u, b)
-#     m_expected = np.dot(interp.T, u.vector().gather())
-#
-#     if my_ensemble.comm.rank == 0 and my_ensemble.ensemble_comm.rank == 0:
-#         assert_allclose(m_expected, mu, atol = 1.e-10)
-#         assert_allclose(C_expected, Cu, atol = 1.e-10)
-#     else:
-#         assert mu.shape == (0,)
-#         assert Cu.shape == (0,0)
-#
-#     fc.destroy()
+@pytest.mark.mpi
+@pytest.mark.parametrize("n_proc",[1, 2])
+def test_solve_prior_covariance_parallel(n_proc):
+    "test solve_conditioned_FEM"
+
+    nx = 10
+
+    my_ensemble = Ensemble(COMM_WORLD, n_proc)
+
+    A, b, mesh, V = create_assembled_problem(nx, my_ensemble.comm)
+
+    fc, cov = create_forcing_covariance(mesh, V)
+
+    od = create_obs_data()
+
+    ab, _ = create_problem_numpy(mesh, V)
+
+    interp = create_interp(mesh, V)
+
+    mu, Cu = solve_prior_covariance(A, b, fc, od, my_ensemble.ensemble_comm)
+
+    C_expected = np.linalg.solve(ab, interp)
+    C_expected = np.dot(cov, C_expected)
+    C_expected = np.linalg.solve(ab, C_expected)
+    C_expected = np.dot(interp.T, C_expected)
+
+    u = Function(V)
+    solve(A, u, b)
+    m_expected = np.dot(interp.T, u.vector().gather())
+
+    if my_ensemble.comm.rank == 0 and my_ensemble.ensemble_comm.rank == 0:
+        assert_allclose(m_expected, mu, atol = 1.e-10)
+        assert_allclose(C_expected, Cu, atol = 1.e-10)
+    else:
+        assert mu.shape == (0,)
+        assert Cu.shape == (0,0)
+
+    fc.destroy()
 
 def test_solve_prior_generating():
     "test the function to solve the prior of the generating process"
