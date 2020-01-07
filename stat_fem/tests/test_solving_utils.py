@@ -18,8 +18,8 @@ def test_solve_forcing_covariance():
 
     fc, cov = create_forcing_covariance(mesh, V)
 
-    # ab, _ = create_problem_numpy(mesh, V)
-    #
+    ab, _ = create_problem_numpy(mesh, V)
+
     # rhs = Function(V).vector()
     # rhs.set_local(np.ones(fc.get_nx_local()))
 
