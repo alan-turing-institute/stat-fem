@@ -130,41 +130,41 @@ from .helper_funcs import create_K_plus_sigma, create_meshcoords, create_K
 #         assert Cuy.shape == (0, 0)
 #
 #     fc.destroy()
-#
-# @pytest.mark.mpi
-# @pytest.mark.parametrize("n_proc",[1, 2])
-# def test_solve_posterior_covariance_parallel(n_proc):
-#     "test solve_posterior_covariance"
-#
-#     nx = 10
-#
-#     my_ensemble = Ensemble(COMM_WORLD, n_proc)
-#
-#     A, b, mesh, V = create_assembled_problem(nx, my_ensemble.comm)
-#
-#     fc, cov = create_forcing_covariance(mesh, V)
-#
-#     od = create_obs_data()
-#
-#     ab,_ = create_problem_numpy(mesh, V)
-#
-#     interp = create_interp(mesh, V)
-#
-#     mu, Cu = solve_prior_covariance(A, b, fc, od, my_ensemble.ensemble_comm)
-#     muy, Cuy = solve_posterior_covariance(A, b, fc, od, np.zeros(3), my_ensemble.ensemble_comm)
-#
-#     if COMM_WORLD.rank == 0:
-#         Kinv = np.linalg.inv(create_K_plus_sigma(np.log(1.), np.log(1.)))
-#         Cuy_expected = np.linalg.inv(np.linalg.inv(Cu) + Kinv)
-#         muy_expected = np.dot(Cuy_expected, np.dot(Kinv, od.get_data()) +
-#                                             np.linalg.solve(Cu, mu))
-#         assert_allclose(muy, muy_expected, atol=1.e-10)
-#         assert_allclose(Cuy, Cuy_expected, atol=1.e-10)
-#     else:
-#         assert muy.shape == (0,)
-#         assert Cuy.shape == (0, 0)
-#
-#     fc.destroy()
+
+@pytest.mark.mpi
+@pytest.mark.parametrize("n_proc",[1, 2])
+def test_solve_posterior_covariance_parallel(n_proc):
+    "test solve_posterior_covariance"
+
+    nx = 10
+
+    my_ensemble = Ensemble(COMM_WORLD, n_proc)
+
+    A, b, mesh, V = create_assembled_problem(nx, my_ensemble.comm)
+
+    fc, cov = create_forcing_covariance(mesh, V)
+
+    od = create_obs_data()
+
+    ab,_ = create_problem_numpy(mesh, V)
+
+    interp = create_interp(mesh, V)
+
+    mu, Cu = solve_prior_covariance(A, b, fc, od, my_ensemble.ensemble_comm)
+    muy, Cuy = solve_posterior_covariance(A, b, fc, od, np.zeros(3), my_ensemble.ensemble_comm)
+
+    if COMM_WORLD.rank == 0:
+        Kinv = np.linalg.inv(create_K_plus_sigma(np.log(1.), np.log(1.)))
+        Cuy_expected = np.linalg.inv(np.linalg.inv(Cu) + Kinv)
+        muy_expected = np.dot(Cuy_expected, np.dot(Kinv, od.get_data()) +
+                                            np.linalg.solve(Cu, mu))
+        assert_allclose(muy, muy_expected, atol=1.e-10)
+        assert_allclose(Cuy, Cuy_expected, atol=1.e-10)
+    else:
+        assert muy.shape == (0,)
+        assert Cuy.shape == (0, 0)
+
+    fc.destroy()
 
 def test_solve_prior_covariance():
     "test solve_conditioned_FEM"

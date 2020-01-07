@@ -129,18 +129,21 @@ def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
 
     if ensemble_comm.rank == 0 and G.comm.rank == 0:
         try:
-            LK = cho_factor(data.calc_K_plus_sigma(params[1:]))
-            Kinv = cho_solve(LK, np.eye(data.get_n_obs()))
-            LC = cho_factor(Cuy)
-            Cinv = cho_solve(LC, np.eye(data.get_n_obs()))
-            L = cho_factor(Cinv + rho**2*Kinv)
-            Cuy = cho_solve(L, np.eye(data.get_n_obs()))
+            Ks = data.calc_K_plus_sigma(params[1:])
+            LK = cho_factor(Ks)
+            LC = cho_factor(Ks/rho**2 + Cuy)
         except LinAlgError:
             raise LinAlgError("Cholesky factorization of one of the covariance matrices failed")
 
-        # get posterior mean
+        # compute posterior mean
 
-        muy = cho_solve(L, rho**2*cho_solve(LK, data.get_data()/rho) + cho_solve(LC, muy))
+        muy = rho*np.dot(Cuy, cho_solve(LK, data.get_data())) + muy
+        muy_tmp = np.dot(Cuy, cho_solve(LC, muy))
+        muy = muy - muy_tmp
+
+        # compute posterior covariance
+
+        Cuy = Cuy - np.dot(Cuy, cho_solve(LC, Cuy))
 
     return muy, Cuy
 
