@@ -16,8 +16,8 @@ def test_solve_forcing_covariance():
 
     A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
 
-    # fc, cov = create_forcing_covariance(mesh, V)
-    #
+    fc, cov = create_forcing_covariance(mesh, V)
+
     # ab, _ = create_problem_numpy(mesh, V)
     #
     # rhs = Function(V).vector()
