@@ -135,6 +135,16 @@ def create_K_plus_sigma(sigma, l):
 
     return K
 
+def create_K(sigma, l):
+    "create shared model discrepancy matrix with measurement error"
+
+    coords = np.array([[0.75], [0.5], [0.25], [0.125]])
+
+    r = cdist(coords, coords)
+    K = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)
+
+    return K
+
 def create_interp_2(mesh, V):
     "create common interpolation matrix"
 

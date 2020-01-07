@@ -191,3 +191,67 @@ def solve_prior_covariance(A, b, G, data, ensemble_comm=COMM_SELF):
     im.destroy()
 
     return mu, Cu
+
+def solve_prior_generating(A, b, G, data, params, ensemble_comm=COMM_SELF):
+    "solve for the prior of the generating process"
+
+    if not isinstance(A, Matrix):
+       raise TypeError("A must be a firedrake matrix")
+    if not isinstance(b, (Function, Vector)):
+        raise TypeError("b must be a firedrake function or vector")
+    if not isinstance(G, ForcingCovariance):
+        raise TypeError("G must be a forcing covariance")
+    if not isinstance(data, ObsData):
+        raise TypeError("data must be an ObsData type")
+    if not isinstance(ensemble_comm, type(COMM_WORLD)):
+        raise TypeError("ensemble_comm must be an MPI communicator created with a firedrake Ensemble")
+
+    params = np.array(params, dtype=np.float64)
+    assert params.shape == (3,), "bad shape for model discrepancy parameters"
+    rho = np.exp(params[0])
+
+    mu, Cu  = solve_prior_covariance(A, b, G, data, ensemble_comm)
+
+    if G.comm.rank == 0 and ensemble_comm.rank == 0:
+        m_eta = rho*mu
+        C_eta = rho**2*Cu + data.calc_K(params[1:])
+    else:
+        m_eta = np.zeros(0)
+        C_eta = np.zeros((0,0))
+
+    return m_eta, C_eta
+
+def solve_posterior_generating(A, b, G, data, params, ensemble_comm=COMM_SELF):
+    "solve for the posterior of the generating process"
+
+    if not isinstance(A, Matrix):
+       raise TypeError("A must be a firedrake matrix")
+    if not isinstance(b, (Function, Vector)):
+        raise TypeError("b must be a firedrake function or vector")
+    if not isinstance(G, ForcingCovariance):
+        raise TypeError("G must be a forcing covariance")
+    if not isinstance(data, ObsData):
+        raise TypeError("data must be an ObsData type")
+    if not isinstance(ensemble_comm, type(COMM_WORLD)):
+        raise TypeError("ensemble_comm must be an MPI communicator created with a firedrake Ensemble")
+
+    params = np.array(params, dtype=np.float64)
+    assert params.shape == (3,), "bad shape for model discrepancy parameters"
+    rho = np.exp(params[0])
+
+    m_eta, C_eta = solve_prior_generating(A, b, G, data, params, ensemble_comm)
+
+    if ensemble_comm.rank == 0 and G.comm.rank == 0:
+        try:
+            L = cho_factor(data.get_unc()**2*np.eye(data.get_n_obs()) + C_eta)
+        except LinAlgError:
+            raise LinAlgError("Cholesky factorization of the covariance matrix failed")
+
+        C_etay = cho_solve(L, data.get_unc()**2*C_eta)
+
+        m_etay = cho_solve(L, np.dot(C_eta, data.get_data()) + data.get_unc()**2*m_eta)
+    else:
+        m_etay = np.zeros(0)
+        C_etay = np.zeros((0,0))
+
+    return m_etay, C_etay
