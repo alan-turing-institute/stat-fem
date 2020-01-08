@@ -7,9 +7,20 @@ from firedrake import COMM_WORLD, Ensemble, SpatialCoordinate, pi, sin
 from ..ForcingCovariance import ForcingCovariance
 from ..ObsData import ObsData
 
+nx = 10
+
 @pytest.fixture
-def mesh():
-    return UnitIntervalMesh(10)
+def my_ensemble(request):
+    n_proc = request.param
+    return Ensemble(COMM_WORLD, n_proc)
+
+@pytest.fixture
+def comm(my_ensemble):
+    return my_ensemble.comm
+
+@pytest.fixture
+def mesh(comm):
+    return UnitIntervalMesh(nx, comm=comm)
 
 @pytest.fixture
 def fs(mesh):
@@ -36,24 +47,6 @@ def b(mesh, fs):
 
     return b
 
-def create_assembled_problem(nx, comm):
-    "common firedrake problem for tests"
-
-    mesh = UnitIntervalMesh(nx, comm=comm)
-    V = FunctionSpace(mesh, "CG", 1)
-    u = TrialFunction(V)
-    v = TestFunction(V)
-    f = Function(V)
-    x = SpatialCoordinate(mesh)
-    f.interpolate((4.*pi*pi)*sin(x[0]*pi*2))
-    a = (dot(grad(v), grad(u))) * dx
-    L = f * v * dx
-    bc = DirichletBC(V, 0., "on_boundary")
-    A = assemble(a, bcs = bc)
-    b = assemble(L)
-
-    return A, b, mesh, V
-
 @pytest.fixture
 def meshcoords(mesh, fs):
     "shared routine for creating fem coordinates"
@@ -64,17 +57,8 @@ def meshcoords(mesh, fs):
 
     return meshcoords
 
-def create_meshcoords(mesh, fs):
-    "shared routine for creating fem coordinates"
-
-    W = VectorFunctionSpace(mesh, fs.ufl_element())
-    X = interpolate(mesh.coordinates, W)
-    meshcoords = X.vector().gather()
-
-    return meshcoords
-
 @pytest.fixture
-def fc(fs, meshcoords):
+def fc(fs):
     sigma = np.log(1.)
     l = np.log(0.1)
     cutoff = 0.
@@ -84,30 +68,21 @@ def fc(fs, meshcoords):
 
     return fc
 
-def create_forcing_covariance(mesh, V):
-    "common forcing covariance object and matrix for tests"
-
-    nx = 10
-
-    meshcoords = create_meshcoords(mesh, V)
-
-    sigma = np.log(1.)
-    l = np.log(0.1)
-    cutoff = 0.
-    regularization = 1.e-8
-
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
+@pytest.fixture
+def cov(fs, fc, meshcoords):
+    sigma = fc.sigma
+    l = fc.l
+    regularization = fc.regularization
     basis = fc._integrate_basis_functions()
 
     r = cdist(np.reshape(meshcoords, (-1, 1)), np.reshape(meshcoords, (-1, 1)))
     cov = (np.outer(basis, basis)*np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2) +
            np.eye(nx + 1)*regularization)
 
-    fc.assemble()
+    return cov
 
-    return fc, cov
-
-def create_obs_data():
+@pytest.fixture
+def od():
     "create observational data object used in tests"
 
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
@@ -117,12 +92,9 @@ def create_obs_data():
 
     return od
 
-def create_problem_numpy(mesh, V):
+@pytest.fixture
+def A_numpy(meshcoords):
     "create assembled FEM problem but as a numpy array"
-
-    nx = 10
-
-    meshcoords = create_meshcoords(mesh, V)
 
     ab_ordered = np.array([[  1.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
                            [  0.,  20., -10.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.],
@@ -136,6 +108,19 @@ def create_problem_numpy(mesh, V):
                            [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0., -10.,  20.,   0.],
                            [  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   1.]])
     ab = np.zeros((nx + 1, nx + 1))
+
+    meshcoords_ordered = np.linspace(0., 1., nx + 1)
+
+    for i in range(nx + 1):
+        for j in range(nx + 1):
+            ab[np.where(meshcoords == meshcoords_ordered[i]),
+               np.where(meshcoords == meshcoords_ordered[j])] = ab_ordered[i, j]
+
+    return ab
+
+@pytest.fixture
+def b_numpy(meshcoords):
+
     b_ordered = np.array([ 3.8674719419474740e-01,  2.1727588820397470e+00,
                            3.5155977204985351e+00,  3.5155977204985343e+00,
                            2.1727588820397470e+00, -2.7755575615628914e-16,
@@ -148,19 +133,14 @@ def create_problem_numpy(mesh, V):
 
     for i in range(nx + 1):
         b_actual[np.where(meshcoords == meshcoords_ordered[i])] = b_ordered[i]
-        for j in range(nx + 1):
-            ab[np.where(meshcoords == meshcoords_ordered[i]),
-               np.where(meshcoords == meshcoords_ordered[j])] = ab_ordered[i, j]
 
-    return ab, b_actual
+    return b_actual
 
-def create_interp(mesh, V):
+@pytest.fixture
+def interp(meshcoords):
     "create common interpolation matrix"
 
-    nx = 10
     nd = 4
-
-    meshcoords = create_meshcoords(mesh, V)
 
     interp_ordered = np.transpose(np.array([[0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.],
                                             [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
@@ -175,34 +155,42 @@ def create_interp(mesh, V):
 
     return interp
 
-def create_K_plus_sigma(sigma, l):
+@pytest.fixture
+def params():
+    return np.zeros(3)
+
+@pytest.fixture
+def Ks(od, params):
     "create shared model discrepancy matrix with measurement error"
 
-    coords = np.array([[0.75], [0.5], [0.25], [0.125]])
-    unc = 0.1
+    sigma = params[1]
+    l = params[2]
+
+    coords = od.get_coords()
+    unc = od.get_unc()
 
     r = cdist(coords, coords)
     K = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)+np.eye(len(coords))*unc**2
 
     return K
 
-def create_K(sigma, l):
+@pytest.fixture
+def K(od, params):
     "create shared model discrepancy matrix with measurement error"
 
-    coords = np.array([[0.75], [0.5], [0.25], [0.125]])
+    sigma = params[1]
+    l = params[2]
 
-    r = cdist(coords, coords)
+    r = cdist(od.get_coords(), od.get_coords())
     K = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)
 
     return K
 
-def create_interp_2(mesh, V):
+@pytest.fixture
+def interp_2(meshcoords):
     "create common interpolation matrix"
 
-    nx = 10
     nd = 5
-
-    meshcoords = create_meshcoords(mesh, V)
 
     interp_ordered = np.transpose(np.array([[0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.],
                                             [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],

@@ -6,39 +6,32 @@ from ..solving import solve_posterior, solve_posterior_covariance, solve_prior_c
 from ..solving import solve_prior_generating, solve_posterior_generating
 from ..ForcingCovariance import ForcingCovariance
 from ..ObsData import ObsData
-from .helper_funcs import create_assembled_problem, create_interp
-from .helper_funcs import create_obs_data, create_problem_numpy, create_forcing_covariance
-from .helper_funcs import create_K_plus_sigma, create_meshcoords, create_K
-from .helper_funcs import mesh, fs, A, b, meshcoords, fc
+from .helper_funcs import nx, params, my_ensemble, comm, mesh, fs, A, b, meshcoords, fc, od, interp, Ks
+from .helper_funcs import A_numpy, cov, K
 
-def test_solve_posterior(mesh, fs, A, b, meshcoords, fc):
+@pytest.mark.parametrize("comm", [COMM_WORLD])
+def test_solve_posterior(fs, A, b, meshcoords, fc, od, interp, Ks, params):
     "test solve_conditioned_FEM"
 
-    od = create_obs_data()
-
-    ab, _ = create_problem_numpy(mesh, fs)
-
-    interp = create_interp(mesh, fs)
+    rho = np.exp(params[0])
 
     # solve and put solution in u
 
     u = Function(fs)
-    solve_posterior(A, u, b, fc, od, np.zeros(3))
+    solve_posterior(A, u, b, fc, od, params)
     u_f = u.vector().gather()
 
     mu, Cu = solve_prior_covariance(A, b, fc, od)
 
     # need "data" on actual FEM grid to get full Cu
 
-    full_data = ObsData(np.reshape(meshcoords, (-1, 1)), np.ones(11), 0.1)
+    full_data = ObsData(np.reshape(meshcoords, (-1, 1)), np.ones(nx + 1), 0.1)
     mu_full, Cu_full = solve_prior_covariance(A, b, fc, full_data)
-
-    Ks = create_K_plus_sigma(np.log(1.), np.log(1.))
 
     if COMM_WORLD.rank == 0:
         tmp_1 = np.linalg.solve(Ks, od.get_data())
-        tmp_1 = np.linalg.multi_dot([Cu_full, interp, tmp_1]) + mu_full
-        KCinv = np.linalg.inv(Ks + Cu)
+        tmp_1 = rho*np.linalg.multi_dot([Cu_full, interp, tmp_1]) + mu_full
+        KCinv = np.linalg.inv(Ks/rho**2 + Cu)
         tmp_2 = np.linalg.multi_dot([Cu_full, interp, KCinv, interp.T, tmp_1])
         u_expected = tmp_1 - tmp_2
         assert_allclose(u_expected, u_f, atol=1.e-10)
@@ -46,27 +39,13 @@ def test_solve_posterior(mesh, fs, A, b, meshcoords, fc):
     fc.destroy()
 
 @pytest.mark.mpi
-@pytest.mark.parametrize("n_proc", [1, 2])
-def test_solve_posterior_parallel(n_proc):
+@pytest.mark.parametrize("my_ensemble", [1, 2], indirect=["my_ensemble"])
+def test_solve_posterior_parallel(my_ensemble, fs, A, b, meshcoords, fc, od, interp, Ks):
     "test solve_conditioned_FEM"
-
-    nx = 10
-
-    my_ensemble = Ensemble(COMM_WORLD, n_proc)
-
-    A, b, mesh, V = create_assembled_problem(nx, my_ensemble.comm)
-
-    fc, cov = create_forcing_covariance(mesh, V)
-
-    od = create_obs_data()
-
-    ab, _ = create_problem_numpy(mesh, V)
-
-    interp = create_interp(mesh, V)
 
     # solve and put solution in u
 
-    u = Function(V)
+    u = Function(fs)
     solve_posterior(A, u, b, fc, od, np.zeros(3), my_ensemble.ensemble_comm)
     u_f = u.vector().gather()
 
@@ -74,13 +53,10 @@ def test_solve_posterior_parallel(n_proc):
 
     # need "data" on actual FEM grid to get full Cu
 
-    meshcoords = create_meshcoords(mesh, V)
-
     full_data = ObsData(np.reshape(meshcoords, (-1, 1)), np.ones(nx + 1), 0.1)
     mu_full, Cu_full = solve_prior_covariance(A, b, fc, full_data, my_ensemble.ensemble_comm)
 
     if my_ensemble.comm.rank == 0 and my_ensemble.ensemble_comm.rank == 0:
-        Ks = create_K_plus_sigma(np.log(1.), np.log(1.))
         tmp_1 = np.linalg.solve(Ks, od.get_data())
         tmp_1 = np.linalg.multi_dot([Cu_full, interp, tmp_1]) + mu_full
         KCinv = np.linalg.inv(Ks + Cu)
@@ -92,23 +68,20 @@ def test_solve_posterior_parallel(n_proc):
 
     fc.destroy()
 
-def test_solve_posterior_covariance(mesh, fs, A, b, fc):
+@pytest.mark.parametrize("comm", [COMM_WORLD])
+def test_solve_posterior_covariance(A, b, fc, od, params, Ks):
     "test solve_posterior_covariance"
 
-    od = create_obs_data()
-
-    ab, _ = create_problem_numpy(mesh, fs)
-
-    interp = create_interp(mesh, fs)
+    rho = np.exp(params[0])
 
     mu, Cu = solve_prior_covariance(A, b, fc, od)
-    muy, Cuy = solve_posterior_covariance(A, b, fc, od, np.zeros(3))
+    muy, Cuy = solve_posterior_covariance(A, b, fc, od, params)
 
-    Kinv = np.linalg.inv(create_K_plus_sigma(np.log(1.), np.log(1.)))
+    Kinv = np.linalg.inv(Ks)
 
     if COMM_WORLD.rank == 0:
-        Cuy_expected = np.linalg.inv(np.linalg.inv(Cu) + Kinv)
-        muy_expected = np.dot(Cuy_expected, np.dot(Kinv, od.get_data()) +
+        Cuy_expected = np.linalg.inv(np.linalg.inv(Cu) + rho**2*Kinv)
+        muy_expected = np.dot(Cuy_expected, rho*np.dot(Kinv, od.get_data()) +
                                             np.linalg.solve(Cu, mu))
         assert_allclose(muy, muy_expected, atol=1.e-10)
         assert_allclose(Cuy, Cuy_expected, atol=1.e-10)
@@ -119,31 +92,19 @@ def test_solve_posterior_covariance(mesh, fs, A, b, fc):
     fc.destroy()
 
 @pytest.mark.mpi
-@pytest.mark.parametrize("n_proc",[1, 2])
-def test_solve_posterior_covariance_parallel(n_proc):
+@pytest.mark.parametrize("my_ensemble", [1, 2], indirect=["my_ensemble"])
+def test_solve_posterior_covariance_parallel(my_ensemble, A, b, fc, od, params, Ks):
     "test solve_posterior_covariance"
 
-    nx = 10
-
-    my_ensemble = Ensemble(COMM_WORLD, n_proc)
-
-    A, b, mesh, V = create_assembled_problem(nx, my_ensemble.comm)
-
-    fc, cov = create_forcing_covariance(mesh, V)
-
-    od = create_obs_data()
-
-    ab, _ = create_problem_numpy(mesh, V)
-
-    interp = create_interp(mesh, V)
+    rho = np.exp(params[0])
 
     mu, Cu = solve_prior_covariance(A, b, fc, od, my_ensemble.ensemble_comm)
-    muy, Cuy = solve_posterior_covariance(A, b, fc, od, np.zeros(3), my_ensemble.ensemble_comm)
+    muy, Cuy = solve_posterior_covariance(A, b, fc, od, params, my_ensemble.ensemble_comm)
 
     if COMM_WORLD.rank == 0:
-        Kinv = np.linalg.inv(create_K_plus_sigma(np.log(1.), np.log(1.)))
-        Cuy_expected = np.linalg.inv(np.linalg.inv(Cu) + Kinv)
-        muy_expected = np.dot(Cuy_expected, np.dot(Kinv, od.get_data()) +
+        Kinv = np.linalg.inv(Ks)
+        Cuy_expected = np.linalg.inv(np.linalg.inv(Cu) + rho**2*Kinv)
+        muy_expected = np.dot(Cuy_expected, rho*np.dot(Kinv, od.get_data()) +
                                             np.linalg.solve(Cu, mu))
         assert_allclose(muy, muy_expected, atol=1.e-10)
         assert_allclose(Cuy, Cuy_expected, atol=1.e-10)
@@ -153,22 +114,15 @@ def test_solve_posterior_covariance_parallel(n_proc):
 
     fc.destroy()
 
-def test_solve_prior_covariance(mesh, fs, A, b, fc):
+@pytest.mark.parametrize("comm", [COMM_WORLD])
+def test_solve_prior_covariance(fs, A, b, fc, od, interp, cov, A_numpy):
     "test solve_conditioned_FEM"
-
-    _, cov = create_forcing_covariance(mesh, fs)
-
-    od = create_obs_data()
-
-    ab, _ = create_problem_numpy(mesh, fs)
-
-    interp = create_interp(mesh, fs)
 
     mu, Cu = solve_prior_covariance(A, b, fc, od)
 
-    C_expected = np.linalg.solve(ab, interp)
+    C_expected = np.linalg.solve(A_numpy, interp)
     C_expected = np.dot(cov, C_expected)
-    C_expected = np.linalg.solve(ab, C_expected)
+    C_expected = np.linalg.solve(A_numpy, C_expected)
     C_expected = np.dot(interp.T, C_expected)
 
     u = Function(fs)
@@ -185,32 +139,18 @@ def test_solve_prior_covariance(mesh, fs, A, b, fc):
     fc.destroy()
 
 @pytest.mark.mpi
-@pytest.mark.parametrize("n_proc",[1, 2])
-def test_solve_prior_covariance_parallel(n_proc):
+@pytest.mark.parametrize("my_ensemble", [1, 2], indirect=["my_ensemble"])
+def test_solve_prior_covariance_parallel(my_ensemble, fs, A, b, fc, od, interp, cov, A_numpy):
     "test solve_conditioned_FEM"
-
-    nx = 10
-
-    my_ensemble = Ensemble(COMM_WORLD, n_proc)
-
-    A, b, mesh, V = create_assembled_problem(nx, my_ensemble.comm)
-
-    fc, cov = create_forcing_covariance(mesh, V)
-
-    od = create_obs_data()
-
-    ab, _ = create_problem_numpy(mesh, V)
-
-    interp = create_interp(mesh, V)
 
     mu, Cu = solve_prior_covariance(A, b, fc, od, my_ensemble.ensemble_comm)
 
-    C_expected = np.linalg.solve(ab, interp)
+    C_expected = np.linalg.solve(A_numpy, interp)
     C_expected = np.dot(cov, C_expected)
-    C_expected = np.linalg.solve(ab, C_expected)
+    C_expected = np.linalg.solve(A_numpy, C_expected)
     C_expected = np.dot(interp.T, C_expected)
 
-    u = Function(V)
+    u = Function(fs)
     solve(A, u, b)
     m_expected = np.dot(interp.T, u.vector().gather())
 
@@ -223,26 +163,19 @@ def test_solve_prior_covariance_parallel(n_proc):
 
     fc.destroy()
 
-def test_solve_prior_generating(mesh, fs, A, b, fc):
+@pytest.mark.parametrize("comm", [COMM_WORLD])
+def test_solve_prior_generating(fs, A, b, fc, od, params, interp, A_numpy, cov, K):
     "test the function to solve the prior of the generating process"
 
-    _, cov = create_forcing_covariance(mesh, fs)
-
-    od = create_obs_data()
-
-    ab, _ = create_problem_numpy(mesh, fs)
-
-    interp = create_interp(mesh, fs)
-
     mu, Cu = solve_prior_covariance(A, b, fc, od)
-    m_eta, C_eta = solve_prior_generating(A, b, fc, od, np.zeros(3))
+    m_eta, C_eta = solve_prior_generating(A, b, fc, od, params)
 
-    rho = 1.
+    rho = np.exp(params[0])
 
-    C_expected = np.linalg.solve(ab, interp)
+    C_expected = np.linalg.solve(A_numpy, interp)
     C_expected = np.dot(cov, C_expected)
-    C_expected = np.linalg.solve(ab, C_expected)
-    C_expected = rho**2*np.dot(interp.T, C_expected) + create_K(0., 0.)
+    C_expected = np.linalg.solve(A_numpy, C_expected)
+    C_expected = rho**2*np.dot(interp.T, C_expected) + K
 
     u = Function(fs)
     solve(A, u, b)
@@ -257,27 +190,20 @@ def test_solve_prior_generating(mesh, fs, A, b, fc):
 
     fc.destroy()
 
-def test_solve_posterior_generating(mesh, fs, A, b, fc):
+@pytest.mark.parametrize("comm", [COMM_WORLD])
+def test_solve_posterior_generating(fs, A, b, fc, od, params):
     "test the function to solve the posterior of the generating process"
 
-    _, cov = create_forcing_covariance(mesh, fs)
+    m_eta, C_eta = solve_prior_generating(A, b, fc, od, params)
+    m_etay, C_etay = solve_posterior_generating(A, b, fc, od, params)
 
-    od = create_obs_data()
-
-    ab, _ = create_problem_numpy(mesh, fs)
-
-    interp = create_interp(mesh, fs)
-
-    m_eta, C_eta = solve_prior_generating(A, b, fc, od, np.zeros(3))
-    m_etay, C_etay = solve_posterior_generating(A, b, fc, od, np.zeros(3))
-
-    rho = 1.
+    rho = np.exp(params[0])
 
     if COMM_WORLD.rank == 0:
         C_expected = np.linalg.inv(C_eta)
-        C_expected = C_expected + np.eye(od.get_n_obs())/0.1**2
+        C_expected = C_expected + np.eye(od.get_n_obs())/od.get_unc()**2
         C_expected = np.linalg.inv(C_expected)
-        m_expected = np.dot(C_expected, od.get_data()/0.1**2 + np.linalg.solve(C_eta, m_eta))
+        m_expected = np.dot(C_expected, od.get_data()/od.get_unc()**2 + np.linalg.solve(C_eta, m_eta))
         assert_allclose(m_expected, m_etay, atol = 1.e-10)
         assert_allclose(C_expected, C_etay, atol = 1.e-10)
     else:
