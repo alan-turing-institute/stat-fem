@@ -169,7 +169,8 @@ def test_solve_posterior_covariance_parallel(n_proc):
 def test_solve_prior_covariance():
     "test solve_conditioned_FEM"
 
-    assert False
+    if COMM_WORLD.size == 2:
+        assert False
 
     nx = 10
 
