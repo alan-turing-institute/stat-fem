@@ -245,6 +245,9 @@ def test_solve_prior_generating():
 
     nx = 10
 
+    if COMM_WORLD.size == 2:
+        assert False
+
     A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
 
     fc, cov = create_forcing_covariance(mesh, V)
@@ -254,9 +257,6 @@ def test_solve_prior_generating():
     ab, _ = create_problem_numpy(mesh, V)
 
     interp = create_interp(mesh, V)
-
-    if COMM_WORLD.size == 2:
-        assert False
 
     mu, Cu = solve_prior_covariance(A, b, fc, od)
     m_eta, C_eta = solve_prior_generating(A, b, fc, od, np.zeros(3))
