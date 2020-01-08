@@ -7,12 +7,10 @@ from ..solving import solve_prior_covariance
 from ..estimation import model_loglikelihood, model_loglikelihood_deriv, estimate_params_MLE
 from .helper_funcs import create_assembled_problem, create_interp
 from .helper_funcs import create_obs_data, create_forcing_covariance, create_K_plus_sigma
-from .helper_funcs import mesh, fs, A, b
+from .helper_funcs import mesh, fs, A, b, fc, meshcoords
 
-def test_model_loglikelihood(mesh, fs, A, b):
+def test_model_loglikelihood(A, b, fc):
     "test the loglikelihood method"
-
-    fc, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
@@ -36,12 +34,10 @@ def test_model_loglikelihood(mesh, fs, A, b):
 
     assert_allclose(loglike_expected, loglike_actual)
 
-def test_model_loglikelihood_deriv(mesh, fs, A, b):
+def test_model_loglikelihood_deriv(A, b, fc):
     "test the model loglikelihood using finite differences"
 
     dx = 1.e-8
-
-    fc, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
@@ -62,12 +58,10 @@ def test_model_loglikelihood_deriv(mesh, fs, A, b):
 
     assert_allclose(loglike_deriv_actual, loglike_deriv_fd, atol=1.e-5, rtol=1.e-5)
 
-def test_estimate_params_MLE(mesh, fs, A, b):
+def test_estimate_params_MLE(A, b, fc):
     "test the function to use MLE to estimate parameters"
 
     # fixed starting point
-
-    fc, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
@@ -82,8 +76,6 @@ def test_estimate_params_MLE(mesh, fs, A, b):
     assert not bool(diff_arg)
 
     # random starting point
-
-    fc, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 

@@ -54,14 +54,35 @@ def create_assembled_problem(nx, comm):
 
     return A, b, mesh, V
 
-def create_meshcoords(mesh, V):
+@pytest.fixture
+def meshcoords(mesh, fs):
     "shared routine for creating fem coordinates"
 
-    W = VectorFunctionSpace(mesh, V.ufl_element())
+    W = VectorFunctionSpace(mesh, fs.ufl_element())
     X = interpolate(mesh.coordinates, W)
     meshcoords = X.vector().gather()
 
     return meshcoords
+
+def create_meshcoords(mesh, fs):
+    "shared routine for creating fem coordinates"
+
+    W = VectorFunctionSpace(mesh, fs.ufl_element())
+    X = interpolate(mesh.coordinates, W)
+    meshcoords = X.vector().gather()
+
+    return meshcoords
+
+@pytest.fixture
+def fc(fs, meshcoords):
+    sigma = np.log(1.)
+    l = np.log(0.1)
+    cutoff = 0.
+    regularization = 1.e-8
+
+    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
+
+    return fc
 
 def create_forcing_covariance(mesh, V):
     "common forcing covariance object and matrix for tests"

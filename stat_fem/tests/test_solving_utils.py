@@ -8,12 +8,12 @@ import pytest
 from ..ForcingCovariance import ForcingCovariance
 from ..solving_utils import _solve_forcing_covariance
 from .helper_funcs import create_assembled_problem, create_forcing_covariance, create_problem_numpy
-from .helper_funcs import mesh, fs, A, b
+from .helper_funcs import mesh, fs, A, b, meshcoords, fc
 
-def test_solve_forcing_covariance(mesh, fs, A, b):
+def test_solve_forcing_covariance(mesh, fs, A, b, fc):
     "test solve_forcing_covariance"
 
-    fc, cov = create_forcing_covariance(mesh, fs)
+    _, cov = create_forcing_covariance(mesh, fs)
 
     ab, _ = create_problem_numpy(mesh, fs)
 

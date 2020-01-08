@@ -9,12 +9,10 @@ from ..ObsData import ObsData
 from .helper_funcs import create_assembled_problem, create_interp
 from .helper_funcs import create_obs_data, create_problem_numpy, create_forcing_covariance
 from .helper_funcs import create_K_plus_sigma, create_meshcoords, create_K
-from .helper_funcs import mesh, fs, A, b
+from .helper_funcs import mesh, fs, A, b, meshcoords, fc
 
-def test_solve_posterior(mesh, fs, A, b):
+def test_solve_posterior(mesh, fs, A, b, meshcoords, fc):
     "test solve_conditioned_FEM"
-
-    fc, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
@@ -31,8 +29,6 @@ def test_solve_posterior(mesh, fs, A, b):
     mu, Cu = solve_prior_covariance(A, b, fc, od)
 
     # need "data" on actual FEM grid to get full Cu
-
-    meshcoords = create_meshcoords(mesh, fs)
 
     full_data = ObsData(np.reshape(meshcoords, (-1, 1)), np.ones(11), 0.1)
     mu_full, Cu_full = solve_prior_covariance(A, b, fc, full_data)
@@ -96,10 +92,8 @@ def test_solve_posterior_parallel(n_proc):
 
     fc.destroy()
 
-def test_solve_posterior_covariance(mesh, fs, A, b):
+def test_solve_posterior_covariance(mesh, fs, A, b, fc):
     "test solve_posterior_covariance"
-
-    fc, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
@@ -159,10 +153,10 @@ def test_solve_posterior_covariance_parallel(n_proc):
 
     fc.destroy()
 
-def test_solve_prior_covariance(mesh, fs, A, b):
+def test_solve_prior_covariance(mesh, fs, A, b, fc):
     "test solve_conditioned_FEM"
 
-    fc, cov = create_forcing_covariance(mesh, fs)
+    _, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
@@ -229,10 +223,10 @@ def test_solve_prior_covariance_parallel(n_proc):
 
     fc.destroy()
 
-def test_solve_prior_generating(mesh, fs, A, b):
+def test_solve_prior_generating(mesh, fs, A, b, fc):
     "test the function to solve the prior of the generating process"
 
-    fc, cov = create_forcing_covariance(mesh, fs)
+    _, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
@@ -263,10 +257,10 @@ def test_solve_prior_generating(mesh, fs, A, b):
 
     fc.destroy()
 
-def test_solve_posterior_generating(mesh, fs, A, b):
+def test_solve_posterior_generating(mesh, fs, A, b, fc):
     "test the function to solve the posterior of the generating process"
 
-    fc, cov = create_forcing_covariance(mesh, fs)
+    _, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 

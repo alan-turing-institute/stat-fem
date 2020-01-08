@@ -10,10 +10,10 @@ from firedrake.interpolation import interpolate
 from firedrake.petsc import PETSc
 import pytest
 from ..ForcingCovariance import ForcingCovariance
-from .helper_funcs import create_forcing_covariance, create_assembled_problem, create_meshcoords
-from .helper_funcs import mesh, fs
+from .helper_funcs import create_forcing_covariance, create_assembled_problem
+from .helper_funcs import mesh, fs, meshcoords, fc
 
-def test_ForcingCovariance_init(fs):
+def test_ForcingCovariance_init(fs, fc):
     "test init method of ForcingCovariance"
 
     # note: tests only handle case of a single process
@@ -23,8 +23,6 @@ def test_ForcingCovariance_init(fs):
 
     sigma = np.log(1.)
     l = np.log(0.1)
-
-    fc = ForcingCovariance(fs, sigma, l)
 
     n = Function(fs).vector().size()
     n_local = Function(fs).vector().local_size()
@@ -40,7 +38,7 @@ def test_ForcingCovariance_init(fs):
     assert fc.function_space == fs
     assert_allclose(fc.sigma, sigma)
     assert_allclose(fc.l, l)
-    assert_allclose(fc.cutoff, 1.e-3)
+    assert_allclose(fc.cutoff, 0.)
     assert_allclose(fc.regularization, 1.e-8)
     assert fc.local_startind == start
     assert fc.local_endind == end
@@ -62,18 +60,12 @@ def test_ForcingCovariance_init_failures(fs):
     with pytest.raises(AssertionError):
         ForcingCovariance(fs, sigma, l, regularization=-1.)
 
-def test_ForcingCovariance_integrate_basis_functions(mesh, fs):
+def test_ForcingCovariance_integrate_basis_functions(meshcoords, fc):
     "test the method to integrate basis functions in ForcingCovariance"
-
-    sigma = np.log(1.)
-    l = np.log(0.1)
-
-    fc = ForcingCovariance(fs, sigma, l)
 
     basis_ordered = np.array([0.05, 0.1 , 0.1 , 0.1 , 0.1 , 0.1 , 0.1 , 0.1 , 0.1 , 0.1 , 0.05])
     basis_expected = np.zeros(11)
 
-    meshcoords = create_meshcoords(mesh, fs)
     meshcoords_ordered = np.linspace(0., 1., 11)
 
     for i in range(11):
@@ -81,15 +73,8 @@ def test_ForcingCovariance_integrate_basis_functions(mesh, fs):
 
     assert_allclose(basis_expected, fc._integrate_basis_functions())
 
-def test_ForcingCovariance_compute_G_vals(mesh, fs):
+def test_ForcingCovariance_compute_G_vals(mesh, fs, fc):
     "test the compute_G_vals method of Forcing Covariance"
-
-    sigma = np.log(1.)
-    l = np.log(0.1)
-    cutoff = 0.
-    regularization = 1.e-8
-
-    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
     _, cov_expected = create_forcing_covariance(mesh, fs)
     nnz_expected = [11]*(fc.local_endind - fc.local_startind)
@@ -103,15 +88,8 @@ def test_ForcingCovariance_compute_G_vals(mesh, fs):
 
     assert len(G_dict) == len(cov_expected[fc.local_startind:fc.local_endind,:].flatten())
 
-def test_ForcingCovariance_assemble(mesh, fs):
+def test_ForcingCovariance_assemble(mesh, fs, fc):
     "test the generate_G method of Forcing Covariance"
-
-    sigma = np.log(1.)
-    l = np.log(0.1)
-    cutoff = 0.
-    regularization = 1.e-8
-
-    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
     fc.assemble()
 
@@ -125,15 +103,8 @@ def test_ForcingCovariance_assemble(mesh, fs):
 
     fc.destroy()
 
-def test_ForcingCovariance_mult(mesh, fs):
+def test_ForcingCovariance_mult(mesh, fs, fc):
     "test the multiplication method of ForcingCovariance"
-
-    sigma = np.log(1.)
-    l = np.log(0.1)
-    cutoff = 0.
-    regularization = 1.e-8
-
-    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
     _, cov_expected = create_forcing_covariance(mesh, fs)
 
@@ -197,40 +168,19 @@ def test_ForcingCovariance_mult_parallel(n_proc):
 
         assert_allclose(ygathered, np.dot(cov_expected, 0.5*np.ones(nx + 1)))
 
-def test_ForcingCovariance_get_nx(fs):
+def test_ForcingCovariance_get_nx(fc):
     "test the get_nx method of ForcingCovariance"
-
-    sigma = np.log(1.)
-    l = np.log(0.1)
-    cutoff = 0.
-    regularization = 1.e-8
-
-    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
     assert fc.get_nx() == 11
 
-def test_ForcingCovariance_get_nx_local(fs):
+def test_ForcingCovariance_get_nx_local(fs, fc):
     "test the get_nx_local method of ForcingCovariance"
-
-    sigma = np.log(1.)
-    l = np.log(0.1)
-    cutoff = 0.
-    regularization = 1.e-8
-
-    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
     n_local = Function(fs).vector().local_size()
 
     assert fc.get_nx_local() == n_local
 
-def test_ForcingCovariance_str(fs):
+def test_ForcingCovariance_str(fc):
     "test the string method of ForcingCovariance"
-
-    sigma = np.log(1.)
-    l = np.log(0.1)
-    cutoff = 0.
-    regularization = 1.e-8
-
-    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
     assert str(fc) == "Forcing Covariance with {} mesh points".format(11)

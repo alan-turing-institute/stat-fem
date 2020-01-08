@@ -15,8 +15,8 @@ from ufl import dx, dot, grad
 from ..InterpolationMatrix import InterpolationMatrix, interpolate_cell
 from ..ForcingCovariance import ForcingCovariance
 from .helper_funcs import create_interp, create_assembled_problem, create_forcing_covariance
-from .helper_funcs import create_problem_numpy, create_meshcoords, create_interp_2
-from .helper_funcs import mesh, fs, A
+from .helper_funcs import create_problem_numpy, create_interp_2
+from .helper_funcs import mesh, fs, A, meshcoords, fc
 
 def test_InterpolationMatrix(fs):
     "test InterpolationMatrix with multiple processes"
@@ -48,7 +48,7 @@ def test_InterpolationMatrix(fs):
     assert im.interp.getSizes() == ((vec.local_size(), vec.size()), (nd//n_proc, nd))
     assert not im.is_assembled
 
-def test_InterpolationMatrix_failures():
+def test_InterpolationMatrix_failures(fs):
     "test situation where InterpolationMatrix should fail"
 
     # bad argument for functionspace
@@ -62,12 +62,8 @@ def test_InterpolationMatrix_failures():
 
     coords = np.array([[0.5, 0.5]])
 
-    nx = 2
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
     with pytest.raises(AssertionError):
-        InterpolationMatrix(V, coords)
+        InterpolationMatrix(fs, coords)
 
 def test_InterpolationMatrix_assemble(mesh, fs):
     "test the assemble method of interpolation matrix"
@@ -124,7 +120,7 @@ def test_InterpolationMatrix_scatter(fs):
 
     assert_allclose(im.dataspace_distrib.array, 5.)
 
-def test_InterpolationMatrix_interp_data_to_mesh(mesh, fs):
+def test_InterpolationMatrix_interp_data_to_mesh(mesh, fs, meshcoords):
     "test method to interpolate data to the mesh"
 
     # simple 1D test
@@ -143,7 +139,6 @@ def test_InterpolationMatrix_interp_data_to_mesh(mesh, fs):
     expected_ordered = np.array([0.  , 2.25, 2.25, 1.5 , 0.  , 1.  , 0.  , 1.  , 1.  , 0.  , 0.  ])
     expected = np.zeros(11)
 
-    meshcoords = create_meshcoords(mesh, fs)
     meshcoords_ordered = np.linspace(0., 1., 11)
 
     for i in range(11):
@@ -174,7 +169,7 @@ def test_InterpolationMatrix_interp_data_to_mesh(mesh, fs):
     with pytest.raises(AssertionError):
         im.interp_data_to_mesh(in_vec)
 
-def test_InterpolationMatrix_interp_mesh_to_data(fs):
+def test_InterpolationMatrix_interp_mesh_to_data(fs, meshcoords):
     "test method to interpolate from distributed mesh to data gathered at root"
 
     # simple 1D test
@@ -189,7 +184,6 @@ def test_InterpolationMatrix_interp_mesh_to_data(fs):
 
     f = Function(fs).vector()
 
-    meshcoords = fs.mesh().coordinates.vector().gather()
     meshcoords_ordered = np.linspace(0., 1., 11)
 
     with f.dat.vec as vec:
@@ -219,7 +213,7 @@ def test_InterpolationMatrix_interp_mesh_to_data(fs):
 
     im.destroy()
 
-def test_InterpolationMatrix_interp_covariance_to_data(mesh, fs, A):
+def test_InterpolationMatrix_interp_covariance_to_data(mesh, fs, A, fc):
     "test the interp_covariance_to_data method"
 
     # simple 1D test
@@ -234,7 +228,7 @@ def test_InterpolationMatrix_interp_covariance_to_data(mesh, fs, A):
 
     interp_expected = create_interp(mesh, fs)
 
-    fc, cov = create_forcing_covariance(mesh, fs)
+    _, cov = create_forcing_covariance(mesh, fs)
 
     ab, b = create_problem_numpy(mesh, fs)
 
@@ -322,7 +316,7 @@ def test_InterpolationMatrix_interp_covariance_to_data_ensemble_odd(n_proc):
     else:
         assert result_actual.shape == (0, 0)
 
-def test_InterpolationMatrix_get_meshspace_column_vector(mesh, fs):
+def test_InterpolationMatrix_get_meshspace_column_vector(mesh, fs, meshcoords):
     "test the get_meshspace_column_vector method"
 
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
@@ -334,7 +328,6 @@ def test_InterpolationMatrix_get_meshspace_column_vector(mesh, fs):
     vec_expected_ordered = np.array([0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.])
     vec_expected = np.zeros(11)
 
-    meshcoords = create_meshcoords(mesh, fs)
     meshcoords_ordered = np.linspace(0., 1., 11)
 
     for i in range(11):
