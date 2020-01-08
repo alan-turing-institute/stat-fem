@@ -1,15 +1,14 @@
 import pytest
 import numpy as np
 from numpy.testing import assert_allclose
-from firedrake import Function, COMM_WORLD, COMM_SELF, Ensemble, solve
+from firedrake import Function, COMM_WORLD, solve
 from ..solving import solve_posterior, solve_posterior_covariance, solve_prior_covariance
 from ..solving import solve_prior_generating, solve_posterior_generating
-from ..ForcingCovariance import ForcingCovariance
 from ..ObsData import ObsData
 from .helper_funcs import nx, params, my_ensemble, comm, mesh, fs, A, b, meshcoords, fc, od, interp, Ks
-from .helper_funcs import A_numpy, cov, K
+from .helper_funcs import A_numpy, cov, K, coords
 
-@pytest.mark.parametrize("comm", [COMM_WORLD])
+@pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
 def test_solve_posterior(fs, A, b, meshcoords, fc, od, interp, Ks, params):
     "test solve_conditioned_FEM"
 
@@ -40,6 +39,7 @@ def test_solve_posterior(fs, A, b, meshcoords, fc, od, interp, Ks, params):
 
 @pytest.mark.mpi
 @pytest.mark.parametrize("my_ensemble", [1, 2], indirect=["my_ensemble"])
+@pytest.mark.parametrize("coords", [1], indirect=["coords"])
 def test_solve_posterior_parallel(my_ensemble, fs, A, b, meshcoords, fc, od, interp, Ks):
     "test solve_conditioned_FEM"
 
@@ -68,7 +68,7 @@ def test_solve_posterior_parallel(my_ensemble, fs, A, b, meshcoords, fc, od, int
 
     fc.destroy()
 
-@pytest.mark.parametrize("comm", [COMM_WORLD])
+@pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
 def test_solve_posterior_covariance(A, b, fc, od, params, Ks):
     "test solve_posterior_covariance"
 
@@ -93,6 +93,7 @@ def test_solve_posterior_covariance(A, b, fc, od, params, Ks):
 
 @pytest.mark.mpi
 @pytest.mark.parametrize("my_ensemble", [1, 2], indirect=["my_ensemble"])
+@pytest.mark.parametrize("coords", [1], indirect=["coords"])
 def test_solve_posterior_covariance_parallel(my_ensemble, A, b, fc, od, params, Ks):
     "test solve_posterior_covariance"
 
@@ -114,7 +115,7 @@ def test_solve_posterior_covariance_parallel(my_ensemble, A, b, fc, od, params, 
 
     fc.destroy()
 
-@pytest.mark.parametrize("comm", [COMM_WORLD])
+@pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
 def test_solve_prior_covariance(fs, A, b, fc, od, interp, cov, A_numpy):
     "test solve_conditioned_FEM"
 
@@ -140,6 +141,7 @@ def test_solve_prior_covariance(fs, A, b, fc, od, interp, cov, A_numpy):
 
 @pytest.mark.mpi
 @pytest.mark.parametrize("my_ensemble", [1, 2], indirect=["my_ensemble"])
+@pytest.mark.parametrize("coords", [1], indirect=["coords"])
 def test_solve_prior_covariance_parallel(my_ensemble, fs, A, b, fc, od, interp, cov, A_numpy):
     "test solve_conditioned_FEM"
 
@@ -163,7 +165,7 @@ def test_solve_prior_covariance_parallel(my_ensemble, fs, A, b, fc, od, interp, 
 
     fc.destroy()
 
-@pytest.mark.parametrize("comm", [COMM_WORLD])
+@pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
 def test_solve_prior_generating(fs, A, b, fc, od, params, interp, A_numpy, cov, K):
     "test the function to solve the prior of the generating process"
 
@@ -190,7 +192,7 @@ def test_solve_prior_generating(fs, A, b, fc, od, params, interp, A_numpy, cov, 
 
     fc.destroy()
 
-@pytest.mark.parametrize("comm", [COMM_WORLD])
+@pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
 def test_solve_posterior_generating(fs, A, b, fc, od, params):
     "test the function to solve the posterior of the generating process"
 

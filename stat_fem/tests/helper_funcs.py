@@ -82,11 +82,20 @@ def cov(fs, fc, meshcoords):
     return cov
 
 @pytest.fixture
-def od():
+def coords(request):
+    if request.param == 1:
+        return np.array([[0.75], [0.5], [0.25], [0.125]])
+    else:
+        return np.array([[0.75], [0.5], [0.25], [0.125], [0.625]])
+
+@pytest.fixture
+def od(coords):
     "create observational data object used in tests"
 
-    coords = np.array([[0.75], [0.5], [0.25], [0.125]])
-    data = np.array([-1.185, -0.06286, 0.8934, 0.7962])
+    if len(coords) == 4:
+        data = np.array([-1.185, -0.06286, 0.8934, 0.7962])
+    else:
+        data = np.array([-1.185, -0.06286, 0.8934, 0.7962, 0.])
     unc = 0.1
     od = ObsData(coords, data, unc)
 
@@ -137,15 +146,22 @@ def b_numpy(meshcoords):
     return b_actual
 
 @pytest.fixture
-def interp(meshcoords):
+def interp(meshcoords, coords):
     "create common interpolation matrix"
 
-    nd = 4
-
-    interp_ordered = np.transpose(np.array([[0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.],
-                                            [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
-                                            [0., 0., 0.5, 0.5, 0., 0., 0., 0., 0., 0., 0.],
-                                            [0., 0.75, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.]]))
+    if len(coords) == 4:
+        nd = 4
+        interp_ordered = np.transpose(np.array([[0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.],
+                                                [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+                                                [0., 0., 0.5, 0.5, 0., 0., 0., 0., 0., 0., 0.],
+                                                [0., 0.75, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.]]))
+    else:
+        nd = 5
+        interp_ordered = np.transpose(np.array([[0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.],
+                                                [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+                                                [0., 0., 0.5, 0.5, 0., 0., 0., 0., 0., 0., 0.],
+                                                [0., 0.75, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.],
+                                                [0., 0., 0., 0., 0., 0., 0.75, 0.25, 0., 0., 0.]]))
     interp = np.zeros((nx + 1, nd))
 
     meshcoords_ordered = np.linspace(0., 1., nx + 1)
@@ -175,33 +191,13 @@ def Ks(od, params):
     return K
 
 @pytest.fixture
-def K(od, params):
+def K(coords, params):
     "create shared model discrepancy matrix with measurement error"
 
     sigma = params[1]
     l = params[2]
 
-    r = cdist(od.get_coords(), od.get_coords())
+    r = cdist(coords, coords)
     K = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)
 
     return K
-
-@pytest.fixture
-def interp_2(meshcoords):
-    "create common interpolation matrix"
-
-    nd = 5
-
-    interp_ordered = np.transpose(np.array([[0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.],
-                                            [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
-                                            [0., 0., 0.5, 0.5, 0., 0., 0., 0., 0., 0., 0.],
-                                            [0., 0.75, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.],
-                                            [0., 0., 0., 0., 0., 0., 0.75, 0.25, 0., 0., 0.]]))
-    interp = np.zeros((nx + 1, nd))
-
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
-
-    for i in range(nx + 1):
-        interp[np.where(meshcoords == meshcoords_ordered[i]),:] = interp_ordered[i,:]
-
-    return interp
