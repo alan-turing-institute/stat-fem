@@ -245,10 +245,10 @@ def test_solve_prior_generating():
 
     nx = 10
 
+    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
+
     if COMM_WORLD.size == 2:
         assert False
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
 
     fc, cov = create_forcing_covariance(mesh, V)
 
@@ -287,6 +287,9 @@ def test_solve_posterior_generating():
     nx = 10
 
     A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
+
+    if COMM_WORLD.size == 2:
+        assert False
 
     fc, cov = create_forcing_covariance(mesh, V)
 
