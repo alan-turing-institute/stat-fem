@@ -201,9 +201,6 @@ def test_solve_prior_covariance():
 
     fc.destroy()
 
-    if COMM_WORLD.size == 2:
-        assert False
-
 @pytest.mark.mpi
 @pytest.mark.parametrize("n_proc",[1, 2])
 def test_solve_prior_covariance_parallel(n_proc):
@@ -242,6 +239,9 @@ def test_solve_prior_covariance_parallel(n_proc):
         assert Cu.shape == (0,0)
 
     fc.destroy()
+
+    if COMM_WORLD.size == 2:
+        assert False
 
 def test_solve_prior_generating():
     "test the function to solve the prior of the generating process"
