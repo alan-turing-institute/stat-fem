@@ -169,6 +169,8 @@ def test_solve_posterior_covariance_parallel(n_proc):
 def test_solve_prior_covariance():
     "test solve_conditioned_FEM"
 
+    assert False
+
     nx = 10
 
     A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
