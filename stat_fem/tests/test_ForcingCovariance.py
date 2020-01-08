@@ -11,8 +11,9 @@ from firedrake.petsc import PETSc
 import pytest
 from ..ForcingCovariance import ForcingCovariance
 from .helper_funcs import create_forcing_covariance, create_assembled_problem, create_meshcoords
+from .helper_funcs import mesh, fs
 
-def test_ForcingCovariance_init():
+def test_ForcingCovariance_init(fs):
     "test init method of ForcingCovariance"
 
     # note: tests only handle case of a single process
@@ -20,16 +21,13 @@ def test_ForcingCovariance_init():
 
     # simple example in 1D
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
     sigma = np.log(1.)
     l = np.log(0.1)
 
-    fc = ForcingCovariance(V, sigma, l)
+    fc = ForcingCovariance(fs, sigma, l)
 
-    n = Function(V).vector().size()
-    n_local = Function(V).vector().local_size()
+    n = Function(fs).vector().size()
+    n_local = Function(fs).vector().local_size()
 
     M = PETSc.Mat().create()
     M.setSizes(((n_local, -1), (n_local, -1)))
@@ -39,7 +37,7 @@ def test_ForcingCovariance_init():
 
     assert fc.nx == n
     assert fc.nx_local == n_local
-    assert fc.function_space == V
+    assert fc.function_space == fs
     assert_allclose(fc.sigma, sigma)
     assert_allclose(fc.l, l)
     assert_allclose(fc.cutoff, 1.e-3)
@@ -48,14 +46,11 @@ def test_ForcingCovariance_init():
     assert fc.local_endind == end
     assert not fc.is_assembled
 
-def test_ForcingCovariance_init_failures():
+def test_ForcingCovariance_init_failures(fs):
     "situations where ForcingCovariance will fail"
 
     # bad types for inputs
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
     sigma = np.log(1.)
     l = np.log(0.1)
 
@@ -65,45 +60,39 @@ def test_ForcingCovariance_init_failures():
     # check that failure occurs with negative regularization
 
     with pytest.raises(AssertionError):
-        ForcingCovariance(V, sigma, l, regularization=-1.)
+        ForcingCovariance(fs, sigma, l, regularization=-1.)
 
-def test_ForcingCovariance_integrate_basis_functions():
+def test_ForcingCovariance_integrate_basis_functions(mesh, fs):
     "test the method to integrate basis functions in ForcingCovariance"
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
     sigma = np.log(1.)
     l = np.log(0.1)
 
-    fc = ForcingCovariance(V, sigma, l)
+    fc = ForcingCovariance(fs, sigma, l)
 
     basis_ordered = np.array([0.05, 0.1 , 0.1 , 0.1 , 0.1 , 0.1 , 0.1 , 0.1 , 0.1 , 0.1 , 0.05])
-    basis_expected = np.zeros(nx + 1)
+    basis_expected = np.zeros(11)
 
-    meshcoords = create_meshcoords(mesh, V)
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
+    meshcoords = create_meshcoords(mesh, fs)
+    meshcoords_ordered = np.linspace(0., 1., 11)
 
-    for i in range(nx + 1):
+    for i in range(11):
         basis_expected[np.where(meshcoords == meshcoords_ordered[i])] = basis_ordered[i]
 
     assert_allclose(basis_expected, fc._integrate_basis_functions())
 
-def test_ForcingCovariance_compute_G_vals():
+def test_ForcingCovariance_compute_G_vals(mesh, fs):
     "test the compute_G_vals method of Forcing Covariance"
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
     sigma = np.log(1.)
     l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
+    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
-    _, cov_expected = create_forcing_covariance(mesh, V)
-    nnz_expected = [nx + 1]*(fc.local_endind - fc.local_startind)
+    _, cov_expected = create_forcing_covariance(mesh, fs)
+    nnz_expected = [11]*(fc.local_endind - fc.local_startind)
 
     G_dict, nnz = fc._compute_G_vals()
 
@@ -114,58 +103,52 @@ def test_ForcingCovariance_compute_G_vals():
 
     assert len(G_dict) == len(cov_expected[fc.local_startind:fc.local_endind,:].flatten())
 
-def test_ForcingCovariance_assemble():
+def test_ForcingCovariance_assemble(mesh, fs):
     "test the generate_G method of Forcing Covariance"
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
     sigma = np.log(1.)
     l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
+    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
     fc.assemble()
 
     assert fc.is_assembled
 
-    _, cov_expected = create_forcing_covariance(mesh, V)
+    _, cov_expected = create_forcing_covariance(mesh, fs)
 
     for i in range(fc.local_startind, fc.local_endind):
-        for j in range(0, nx + 1):
+        for j in range(0, 11):
             assert_allclose(fc.G.getValue(i, j), cov_expected[i, j], atol = 1.e-8, rtol = 1.e-6)
 
     fc.destroy()
 
-def test_ForcingCovariance_mult():
+def test_ForcingCovariance_mult(mesh, fs):
     "test the multiplication method of ForcingCovariance"
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
     sigma = np.log(1.)
     l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
+    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
-    _, cov_expected = create_forcing_covariance(mesh, V)
+    _, cov_expected = create_forcing_covariance(mesh, fs)
 
     fc.assemble()
 
-    x = Function(V).vector()
+    x = Function(fs).vector()
     x.set_local(np.ones(x.local_size()))
 
-    y = Function(V).vector()
+    y = Function(fs).vector()
 
     fc.mult(x, y)
 
     ygathered = y.gather()
 
-    assert_allclose(ygathered, np.dot(cov_expected, np.ones(nx + 1)))
+    assert_allclose(ygathered, np.dot(cov_expected, np.ones(11)))
 
 @pytest.mark.mpi
 @pytest.mark.parametrize("n_proc", [1, 2])
@@ -214,49 +197,40 @@ def test_ForcingCovariance_mult_parallel(n_proc):
 
         assert_allclose(ygathered, np.dot(cov_expected, 0.5*np.ones(nx + 1)))
 
-def test_ForcingCovariance_get_nx():
+def test_ForcingCovariance_get_nx(fs):
     "test the get_nx method of ForcingCovariance"
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
     sigma = np.log(1.)
     l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
+    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
-    assert fc.get_nx() == nx + 1
+    assert fc.get_nx() == 11
 
-def test_ForcingCovariance_get_nx_local():
+def test_ForcingCovariance_get_nx_local(fs):
     "test the get_nx_local method of ForcingCovariance"
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
     sigma = np.log(1.)
     l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
+    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
-    n_local = Function(V).vector().local_size()
+    n_local = Function(fs).vector().local_size()
 
     assert fc.get_nx_local() == n_local
 
-def test_ForcingCovariance_str():
+def test_ForcingCovariance_str(fs):
     "test the string method of ForcingCovariance"
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
     sigma = np.log(1.)
     l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
+    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
-    assert str(fc) == "Forcing Covariance with {} mesh points".format(nx + 1)
+    assert str(fc) == "Forcing Covariance with {} mesh points".format(11)

@@ -7,15 +7,12 @@ from ..solving import solve_prior_covariance
 from ..estimation import model_loglikelihood, model_loglikelihood_deriv, estimate_params_MLE
 from .helper_funcs import create_assembled_problem, create_interp
 from .helper_funcs import create_obs_data, create_forcing_covariance, create_K_plus_sigma
+from .helper_funcs import mesh, fs, A, b
 
-def test_model_loglikelihood():
+def test_model_loglikelihood(mesh, fs, A, b):
     "test the loglikelihood method"
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    fc, cov = create_forcing_covariance(mesh, V)
+    fc, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
@@ -39,16 +36,12 @@ def test_model_loglikelihood():
 
     assert_allclose(loglike_expected, loglike_actual)
 
-def test_model_loglikelihood_deriv():
+def test_model_loglikelihood_deriv(mesh, fs, A, b):
     "test the model loglikelihood using finite differences"
 
     dx = 1.e-8
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    fc, cov = create_forcing_covariance(mesh, V)
+    fc, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
@@ -69,16 +62,12 @@ def test_model_loglikelihood_deriv():
 
     assert_allclose(loglike_deriv_actual, loglike_deriv_fd, atol=1.e-5, rtol=1.e-5)
 
-def test_estimate_params_MLE():
+def test_estimate_params_MLE(mesh, fs, A, b):
     "test the function to use MLE to estimate parameters"
 
     # fixed starting point
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    fc, cov = create_forcing_covariance(mesh, V)
+    fc, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
@@ -94,14 +83,11 @@ def test_estimate_params_MLE():
 
     # random starting point
 
-    nx = 10
-
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    fc, cov = create_forcing_covariance(mesh, V)
+    fc, cov = create_forcing_covariance(mesh, fs)
 
     od = create_obs_data()
 
+    np.random.seed(234)
     result = estimate_params_MLE(A, b, fc, od, start=None)
 
     root_result = COMM_WORLD.bcast(result, root=0)

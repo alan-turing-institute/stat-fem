@@ -8,26 +8,23 @@ import pytest
 from ..ForcingCovariance import ForcingCovariance
 from ..solving_utils import _solve_forcing_covariance
 from .helper_funcs import create_assembled_problem, create_forcing_covariance, create_problem_numpy
+from .helper_funcs import mesh, fs, A, b
 
-def test_solve_forcing_covariance():
+def test_solve_forcing_covariance(mesh, fs, A, b):
     "test solve_forcing_covariance"
 
-    nx = 10
+    fc, cov = create_forcing_covariance(mesh, fs)
 
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
+    ab, _ = create_problem_numpy(mesh, fs)
 
-    fc, cov = create_forcing_covariance(mesh, V)
-
-    ab, _ = create_problem_numpy(mesh, V)
-
-    rhs = Function(V).vector()
+    rhs = Function(fs).vector()
     rhs.set_local(np.ones(fc.get_nx_local()))
 
     result = _solve_forcing_covariance(fc, A, rhs)
 
     result_actual = result.gather()
 
-    result_expected = np.linalg.solve(ab, np.ones(nx + 1))
+    result_expected = np.linalg.solve(ab, np.ones(11))
     result_expected = np.dot(cov, result_expected)
     result_expected = np.linalg.solve(ab, result_expected)
 

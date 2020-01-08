@@ -6,56 +6,49 @@ from ..ForcingCovariance import ForcingCovariance
 from ..InterpolationMatrix import InterpolationMatrix
 from firedrake.matrix import Matrix
 from firedrake import dx, TrialFunction, TestFunction, interpolate
-from firedrake import dot, DirichletBC, grad, Function
-from firedrake import COMM_WORLD, SpatialCoordinate, pi, sin
+from firedrake import dot, DirichletBC, grad
 from .helper_funcs import create_interp, create_assembled_problem, create_forcing_covariance
+from .helper_funcs import mesh, fs
 
-def test_assemble_ForcingCovariance():
+def test_assemble_ForcingCovariance(mesh, fs):
     "test assemble with a forcing covariance object"
 
     # assemble forcing covariance
 
-    nx = 10
-
-    _, _, mesh, V = create_assembled_problem(nx, COMM_WORLD)
     sigma = np.log(1.)
     l = np.log(0.1)
     cutoff = 0.
     regularization = 1.e-8
 
-    fc = ForcingCovariance(V, sigma, l, cutoff, regularization)
+    fc = ForcingCovariance(fs, sigma, l, cutoff, regularization)
 
     fc_2 = assemble(fc)
 
     assert fc_2.is_assembled
 
-    _, cov_expected = create_forcing_covariance(mesh, V)
+    _, cov_expected = create_forcing_covariance(mesh, fs)
 
     for i in range(fc_2.local_startind, fc_2.local_endind):
-        for j in range(0, nx + 1):
+        for j in range(0, 11):
             assert_allclose(fc_2.G.getValue(i, j), cov_expected[i, j], atol = 1.e-8, rtol = 1.e-6)
 
     fc.destroy()
 
-def test_assemble_InterpolationMatrix():
+def test_assemble_InterpolationMatrix(mesh, fs):
     "test assemble with an interpolation matrix"
 
     # assemble interpolation matrix
 
-    nx = 10
-
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
     nd = len(coords)
 
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    im = InterpolationMatrix(V, coords)
+    im = InterpolationMatrix(fs, coords)
 
     im_2 = assemble(im)
 
     assert im_2.is_assembled
 
-    interp_expected = create_interp(mesh, V)
+    interp_expected = create_interp(mesh, fs)
 
     imin, imax = im_2.interp.getOwnershipRange()
 
@@ -65,23 +58,15 @@ def test_assemble_InterpolationMatrix():
 
     im.destroy()
 
-def test_assemble_firedrake():
+def test_assemble_firedrake(fs):
     "test assemble with a firedrake object"
 
     # assemble firedrake matrix
 
-    nx = 10
-
-    _, _, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    u = TrialFunction(V)
-    v = TestFunction(V)
-    f = Function(V)
-    x = SpatialCoordinate(mesh)
-    f.interpolate((4.*pi*pi)*sin(x[0]*pi*2))
+    u = TrialFunction(fs)
+    v = TestFunction(fs)
     a = (dot(grad(v), grad(u))) * dx
-    L = f * v * dx
-    bc = DirichletBC(V, 0., "on_boundary")
+    bc = DirichletBC(fs, 0., "on_boundary")
     A = assemble(a, bcs = bc)
 
     assert isinstance(A, Matrix)

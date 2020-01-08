@@ -16,21 +16,19 @@ from ..InterpolationMatrix import InterpolationMatrix, interpolate_cell
 from ..ForcingCovariance import ForcingCovariance
 from .helper_funcs import create_interp, create_assembled_problem, create_forcing_covariance
 from .helper_funcs import create_problem_numpy, create_meshcoords, create_interp_2
+from .helper_funcs import mesh, fs, A
 
-def test_InterpolationMatrix():
+def test_InterpolationMatrix(fs):
     "test InterpolationMatrix with multiple processes"
 
     n_proc = COMM_WORLD.size
 
-    nx = 7
-
     coords = np.array([[0.75], [0.5], [0.25], [0.1]])
     nd = len(coords)
 
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-    vec = Function(V).vector()
+    vec = Function(fs).vector()
 
-    im = InterpolationMatrix(V, coords)
+    im = InterpolationMatrix(fs, coords)
 
     if COMM_WORLD.rank == 0:
         gathered_sizes = (nd, nd)
@@ -42,7 +40,7 @@ def test_InterpolationMatrix():
     assert im.n_mesh == vec.size()
     assert im.n_mesh_local == vec.local_size()
     assert_allclose(im.coords, coords)
-    assert im.function_space == V
+    assert im.function_space == fs
     assert im.meshspace_vector.size() == vec.size()
     assert im.meshspace_vector.local_size() == vec.local_size()
     assert im.dataspace_distrib.getSizes() == (nd//n_proc, nd)
@@ -71,24 +69,20 @@ def test_InterpolationMatrix_failures():
     with pytest.raises(AssertionError):
         InterpolationMatrix(V, coords)
 
-def test_InterpolationMatrix_assemble():
+def test_InterpolationMatrix_assemble(mesh, fs):
     "test the assemble method of interpolation matrix"
 
     # simple 1D test
 
-    nx = 10
-
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
     nd = len(coords)
 
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    im = InterpolationMatrix(V, coords)
+    im = InterpolationMatrix(fs, coords)
     im.assemble()
 
     assert im.is_assembled
 
-    interp_expected = create_interp(mesh, V)
+    interp_expected = create_interp(mesh, fs)
 
     imin, imax = im.interp.getOwnershipRange()
 
@@ -116,17 +110,13 @@ def test_InterpolationMatrix_gather():
 
     assert_allclose(im.dataspace_gathered.array, 5.)
 
-def test_InterpolationMatrix_scatter():
+def test_InterpolationMatrix_scatter(fs):
     "test the method to scatter data to distributed vectors"
-
-    nx = 10
 
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
     nd = len(coords)
 
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    im = InterpolationMatrix(V, coords)
+    im = InterpolationMatrix(fs, coords)
 
     im.dataspace_gathered.set(5.)
 
@@ -134,19 +124,15 @@ def test_InterpolationMatrix_scatter():
 
     assert_allclose(im.dataspace_distrib.array, 5.)
 
-def test_InterpolationMatrix_interp_data_to_mesh():
+def test_InterpolationMatrix_interp_data_to_mesh(mesh, fs):
     "test method to interpolate data to the mesh"
 
     # simple 1D test
 
-    nx = 10
-
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
     nd = len(coords)
 
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    im = InterpolationMatrix(V, coords)
+    im = InterpolationMatrix(fs, coords)
     im.assemble()
 
     if COMM_WORLD.rank == 0:
@@ -155,12 +141,12 @@ def test_InterpolationMatrix_interp_data_to_mesh():
         data = np.zeros(0)
 
     expected_ordered = np.array([0.  , 2.25, 2.25, 1.5 , 0.  , 1.  , 0.  , 1.  , 1.  , 0.  , 0.  ])
-    expected = np.zeros(nx + 1)
+    expected = np.zeros(11)
 
-    meshcoords = create_meshcoords(mesh, V)
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
+    meshcoords = create_meshcoords(mesh, fs)
+    meshcoords_ordered = np.linspace(0., 1., 11)
 
-    for i in range(nx + 1):
+    for i in range(11):
         expected[np.where(meshcoords == meshcoords_ordered[i])] = expected_ordered[i]
 
     out = im.interp_data_to_mesh(data)
@@ -188,27 +174,23 @@ def test_InterpolationMatrix_interp_data_to_mesh():
     with pytest.raises(AssertionError):
         im.interp_data_to_mesh(in_vec)
 
-def test_InterpolationMatrix_interp_mesh_to_data():
+def test_InterpolationMatrix_interp_mesh_to_data(fs):
     "test method to interpolate from distributed mesh to data gathered at root"
 
     # simple 1D test
 
-    nx = 10
-
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
     nd = len(coords)
 
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    im = InterpolationMatrix(V, coords)
+    im = InterpolationMatrix(fs, coords)
     im.assemble()
 
     input_ordered = np.array([3., 2., 7., 4., 0., 0., 2., 1., 1., 1., 5.])
 
-    f = Function(V).vector()
+    f = Function(fs).vector()
 
-    meshcoords = V.mesh().coordinates.vector().gather()
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
+    meshcoords = fs.mesh().coordinates.vector().gather()
+    meshcoords_ordered = np.linspace(0., 1., 11)
 
     with f.dat.vec as vec:
         imin, imax = vec.getOwnershipRange()
@@ -226,7 +208,8 @@ def test_InterpolationMatrix_interp_mesh_to_data():
 
     # failure due to bad input sizes
 
-    A, b, mesh2, V2 = create_assembled_problem(nx + 1, COMM_WORLD)
+    mesh2 = UnitIntervalMesh(12)
+    V2 = FunctionSpace(mesh2, "CG", 1)
 
     f2 = Function(V2).vector()
     f2.set_local(np.ones(f2.local_size()))
@@ -236,28 +219,24 @@ def test_InterpolationMatrix_interp_mesh_to_data():
 
     im.destroy()
 
-def test_InterpolationMatrix_interp_covariance_to_data():
+def test_InterpolationMatrix_interp_covariance_to_data(mesh, fs, A):
     "test the interp_covariance_to_data method"
 
     # simple 1D test
 
-    nx = 10
-
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
     nd = len(coords)
 
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    im = InterpolationMatrix(V, coords)
+    im = InterpolationMatrix(fs, coords)
     im.assemble()
 
     assert im.is_assembled
 
-    interp_expected = create_interp(mesh, V)
+    interp_expected = create_interp(mesh, fs)
 
-    fc, cov = create_forcing_covariance(mesh, V)
+    fc, cov = create_forcing_covariance(mesh, fs)
 
-    ab, b = create_problem_numpy(mesh, V)
+    ab, b = create_problem_numpy(mesh, fs)
 
     result_expected = np.linalg.solve(ab, interp_expected)
     result_expected = np.dot(cov, result_expected)
@@ -343,26 +322,22 @@ def test_InterpolationMatrix_interp_covariance_to_data_ensemble_odd(n_proc):
     else:
         assert result_actual.shape == (0, 0)
 
-def test_InterpolationMatrix_get_meshspace_column_vector():
+def test_InterpolationMatrix_get_meshspace_column_vector(mesh, fs):
     "test the get_meshspace_column_vector method"
-
-    nx = 10
 
     coords = np.array([[0.75], [0.5], [0.25], [0.125]])
     nd = len(coords)
 
-    A, b, mesh, V = create_assembled_problem(nx, COMM_WORLD)
-
-    im = InterpolationMatrix(V, coords)
+    im = InterpolationMatrix(fs, coords)
     im.assemble()
 
     vec_expected_ordered = np.array([0., 0., 0., 0., 0., 0., 0., 0.5, 0.5, 0., 0.])
-    vec_expected = np.zeros(nx + 1)
+    vec_expected = np.zeros(11)
 
-    meshcoords = create_meshcoords(mesh, V)
-    meshcoords_ordered = np.linspace(0., 1., nx + 1)
+    meshcoords = create_meshcoords(mesh, fs)
+    meshcoords_ordered = np.linspace(0., 1., 11)
 
-    for i in range(nx + 1):
+    for i in range(11):
         vec_expected[np.where(meshcoords == meshcoords_ordered[i])] = vec_expected_ordered[i]
 
     vec = im.get_meshspace_column_vector(0)

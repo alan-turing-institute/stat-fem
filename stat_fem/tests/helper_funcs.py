@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 from scipy.spatial.distance import cdist
 from firedrake import UnitIntervalMesh, FunctionSpace, dx, TrialFunction, TestFunction, interpolate
@@ -5,6 +6,35 @@ from firedrake import dot, assemble, DirichletBC, grad, Function, VectorFunction
 from firedrake import COMM_WORLD, Ensemble, SpatialCoordinate, pi, sin
 from ..ForcingCovariance import ForcingCovariance
 from ..ObsData import ObsData
+
+@pytest.fixture
+def mesh():
+    return UnitIntervalMesh(10)
+
+@pytest.fixture
+def fs(mesh):
+    return FunctionSpace(mesh, "CG", 1)
+
+@pytest.fixture
+def A(fs):
+    u = TrialFunction(fs)
+    v = TestFunction(fs)
+    a = (dot(grad(v), grad(u))) * dx
+    bc = DirichletBC(fs, 0., "on_boundary")
+    A = assemble(a, bcs = bc)
+
+    return A
+
+@pytest.fixture
+def b(mesh, fs):
+    v = TestFunction(fs)
+    f = Function(fs)
+    x = SpatialCoordinate(mesh)
+    f.interpolate((4.*pi*pi)*sin(x[0]*pi*2))
+    L = f * v * dx
+    b = assemble(L)
+
+    return b
 
 def create_assembled_problem(nx, comm):
     "common firedrake problem for tests"
