@@ -240,9 +240,6 @@ def test_solve_prior_covariance_parallel(n_proc):
 
     fc.destroy()
 
-    if COMM_WORLD.size == 2:
-        assert False
-
 def test_solve_prior_generating():
     "test the function to solve the prior of the generating process"
 
@@ -280,6 +277,9 @@ def test_solve_prior_generating():
         assert C_eta.shape == (0,0)
 
     fc.destroy()
+
+    if COMM_WORLD.size == 2:
+        assert False
 
 def test_solve_posterior_generating():
     "test the function to solve the posterior of the generating process"
