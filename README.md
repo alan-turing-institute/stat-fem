@@ -13,12 +13,13 @@ challenging problems in data-driven numerical analysis.
 
 ## Installation
 
-Installing stat-fem requires installing Firedrake
-
 ### Installing Firedrake
 
 stat-fem requires a working Firedrake installation. The easiest way to obtain Firedrake is to
 follow the installation instructions on the [firedrake homepage](https://www.firedrakeproject.org).
+
+### Installing stat-fem
+
 Once you have installed Firedrake, activate the virtual environment that was created as part of
 the installation process. Within the running virtual environment, switch to the main stat-fem
 directory and proceed with the installation by entering:
@@ -54,7 +55,7 @@ The various solves required for the Statistical FEM can be done in parallel in s
 
 To parallelize the solution of the base FEM model, you can simply run your Python script under MPI
 to divide the FEM mesh among the given number of processes. This is handled natively in Firedrake
-as well as stat-fem. For instance, depending on your system setup you would enter:
+as well as stat-fem. For instance, depending on your system setup you would enter: ::
 
    $ mpiexec -n 4 python model.py
 
@@ -89,7 +90,7 @@ When running a script using this type of parallelism, the user must specify how 
 MPI processes across the two different types of solves. This is done when constructing the
 `Ensemble` instance. For example, if you wish you use 4 processes total, with 2 dedicated to each
 base solve and 2 processes over which the data constraint solves will be done, you would do the
-following:
+following in the file `model.py`: ::
 
    from firedrake import Ensemble, COMM_WORLD, UnitSquareMesh
 
@@ -97,6 +98,10 @@ following:
 
    # divide mesh across two processes in base comm
    mesh = UnitSquareMesh(51, 51, comm=my_ensemble.comm)
+
+   ...
+
+Then run the python script with `mpiexec -n 4 python model.py`
 
 Note that it is up to the user to ensure that the total number of processes is divisible by the base
 number of processes. One way to handle this is using input arguments to manage the number of
