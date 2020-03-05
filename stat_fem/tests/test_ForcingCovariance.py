@@ -81,16 +81,16 @@ def test_ForcingCovariance_integrate_basis_functions(meshcoords, fc):
 def test_ForcingCovariance_compute_G_vals(fc, cov):
     "test the compute_G_vals method of Forcing Covariance"
 
-    nnz_expected = [nx + 1]*(fc.local_endind - fc.local_startind)
+    nnz_expected = nx + 1
 
     G_dict, nnz = fc._compute_G_vals()
 
     assert nnz == nnz_expected
 
     for key, val in G_dict.items():
-        assert_allclose(val, cov[key[0], key[1]], atol = 1.e-8, rtol = 1.e-6)
+        assert_allclose(val[0], cov[key, val[1]], atol = 1.e-8, rtol = 1.e-6)
 
-    assert len(G_dict) == len(cov[fc.local_startind:fc.local_endind,:].flatten())
+    assert len(G_dict) == fc.local_endind - fc.local_startind
 
 @pytest.mark.parametrize("comm", [COMM_WORLD])
 def test_ForcingCovariance_assemble(fc, cov):
