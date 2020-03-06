@@ -3,9 +3,47 @@ from firedrake import COMM_WORLD, COMM_SELF
 from .CovarianceFunctions import sqexp, sqexp_deriv
 
 class ObsData(object):
-    "class representing Observational Data and discrepancy between model and observations"
+    """
+    Class representing Observational Data and discrepancy between model and observations
+
+    This class holds information on observational data and uncertainties. It also serves
+    as a wrapper to compute the model discrepancy (since the data coordinates and
+    uncertainties are stored here). At the moment, it only implements the squared
+    exponential kernel and assumes that data is not time varying.
+
+    :ivar coords: Array holding coordinate locations of measurements. Must be 1D or 2D
+                  where the first axis represents the different coordinate points and
+                  the second axis represents the cartesian axis directions. If 1D,
+                  assumes the second axis has length 1.
+    :type coords: ndarray
+    :ivar data: Sensor measurements at all of the given coordinate locations. Length
+                must be the same as the first axis of ``coords``.
+    :type data: ndarray
+    :ivar unc: Uncertainty on data measurements as a standard deviation. Can be a single
+               float, or an array of floats with the same length as the number of
+               sensors. Must be non-negative.
+    :type unc: float or ndarray
+    """
     def __init__(self, coords, data, unc):
-        "create a new ObsData object given data and a covariance function"
+        """
+        Create a new ObsData object
+
+        Creates a new ``ObsData`` object given coordinates, data values, and uncertainties.
+        Performs re-shaping of inputs and some checks on values.
+
+        :param coords: Array holding coordinate locations of measurements. Must be 1D or 2D
+                       where the first axis represents the different coordinate points and
+                       the second axis represents the cartesian axis directions. If 1D,
+                       assumes the second axis has length 1.
+        :type coords: ndarray
+        :param data: Sensor measurements at all of the given coordinate locations. Length
+                     must be the same as the first axis of ``coords``.
+        :type data: ndarray
+        :param unc: Uncertainty on data measurements as a standard deviation. Can be a single
+                    float, or an array of floats with the same length as the number of
+                    sensors. Must be non-negative.
+        :type unc: float or ndarray
+        """
 
         coords = np.array(coords, dtype=np.float64)
 
@@ -29,32 +67,87 @@ class ObsData(object):
         self.unc = np.copy(unc)
 
     def get_n_dim(self):
-        "returns number of dimensions in FEM model"
+        """
+        Returns number of dimensions in FEM model
+
+        Returns the number of spatial dimensions in FEM model as an integer.
+
+        :returns: Number of spatial dimensions
+        :rtype: int
+        """
 
         return self.n_dim
 
     def get_n_obs(self):
-        "returns number of observations"
+        """
+        Returns number of observations
+
+        Returns the number of sensor observations as an integer.
+
+        :returns: Number of sensor measurements
+        :rtype: int
+        """
 
         return self.n_obs
 
     def get_coords(self):
-        "returns coordinate points as a numpy array"
+        """
+        Returns coordinate points as a numpy array
+
+        Returns coordinate points where sensor measurements have been made as a numpy array.
+        2D array with the first axis representing the different sensors, and the second
+        axis represents the different spatial dimensions.
+
+        :returns: Coordinate array, a 2D numpy array
+        :rtype: ndarray
+        """
 
         return self.coords
 
     def get_data(self):
-        "returns observations or an empty array, depending on rank"
+        """
+        Returns sensor observations as a numpy array
+
+        Returns sensor observations as a 1D numpy array. Length is the same as the number of sensors.
+
+        :returns: Coordinate array, a 1D numpy array
+        :rtype: ndarray
+        """
 
         return self.data
 
     def get_unc(self):
-        "returns uncertainties (as standard deviation)"
+        """
+        Returns uncertainties
+
+        Returns data measurement uncertainty as a standard deviation, either a float or a numpy array
+        if uncertainties differ across sensors.
+
+        :returns: Uncertainty as a standard deviation, either a float or a numpy array
+        :rtype: float or ndarray
+        """
 
         return self.unc
 
     def calc_K(self, params):
-        "returns model discrepancy covariance matrix"
+        """
+        Returns model discrepancy covariance matrix
+
+        Computes the model discrepancy covariance matrix for the given parameters. Assumes that
+        the discrepancy is a multivariate normal distribution with zero mean and a squared
+        exponential covariance matrix. Params are given on a logarithmic scale to enforce
+        positivity, the first parameter is the overall covariance scale (actual covariance is
+        found by taking exp(2.*params[0]) and the second is the spatial correlation length scale
+        (actual correlation length is exp(params[1])). Returns a numpy array with shape
+        ``(n_obs, n_obs)``.
+
+        :param params: Covariance function parameters on a logarithmic scale. Must be a numpy
+                       array of length 2 (first parameter is the overall covariance scale, second
+                       determines the correlation length scale).
+        :type params: ndarray
+        :returns: Model discrepancy covariance matrix, shape is ``(n_obs, n_obs)``.
+        :rtype: ndarray
+        """
 
         params = np.array(params)
         assert params.shape == (2,), "parameters must have length 2"
@@ -65,7 +158,25 @@ class ObsData(object):
         return sqexp(self.coords, self.coords, sigma, l)
 
     def calc_K_plus_sigma(self, params):
-        "return model discrepancy covariance plus observational data error"
+        """
+        Returns model discrepancy covariance matrix plus observation error
+
+        Computes the model discrepancy covariance matrix for the given parameters plus the
+        observational error. Assumes that the discrepancy is a multivariate normal distribution
+        with zero mean and a squared exponential covariance matrix. Params are given on a
+        logarithmic scale to enforce positivity, the first parameter is the overall covariance
+        scale (actual covariance is found by taking exp(2.*params[0]) and the second is the
+        spatial correlation length scale (actual correlation length is exp(params[1])).
+        Returns a numpy array with shape ``(n_obs, n_obs)``.
+
+        :param params: Covariance function parameters on a logarithmic scale. Must be a numpy
+                       array of length 2 (first parameter is the overall covariance scale, second
+                       determines the correlation length scale).
+        :type params: ndarray
+        :returns: Model discrepancy covariance matrix plus observational error, shape is
+                  ``(n_obs, n_obs)``.
+        :rtype: ndarray
+        """
 
         if self.unc.shape == ():
             sigma_dat = np.eye(self.n_obs)*self.unc**2
@@ -75,7 +186,25 @@ class ObsData(object):
         return self.calc_K(params) + sigma_dat
 
     def calc_K_deriv(self, params):
-        "returns derivative of model discrepancy with respect to the parameters"
+        """
+        Returns derivative of model discrepancy covariance matrix wrt parameters
+
+        Computes the derivative of the model discrepancy covariance matrix with respect to the
+        input parameters. Assumes that the discrepancy is a multivariate normal distribution
+        with zero mean and a squared exponential covariance matrix. Params are given on a
+        logarithmic scale to enforce positivity, the first parameter is the overall covariance
+        scale (actual covariance is found by taking exp(2.*params[0]) and the second is the
+        spatial correlation length scale (actual correlation length is exp(params[1])).
+        Returns a numpy array with shape ``(2, n_obs, n_obs)``.
+
+        :param params: Covariance function parameters on a logarithmic scale. Must be a numpy
+                       array of length 2 (first parameter is the overall covariance scale, second
+                       determines the correlation length scale).
+        :type params: ndarray
+        :returns: Model discrepancy covariance matrix derivative with respect to the parameters,
+                  shape is ``(2, n_obs, n_obs)``.
+        :rtype: ndarray
+        """
 
         params = np.array(params)
         assert params.shape == (2,), "parameters must have length 2"
