@@ -206,57 +206,6 @@ def test_InterpolationMatrix_interp_mesh_to_data(fs, coords, meshcoords):
     im.destroy()
 
 @pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
-def test_InterpolationMatrix_interp_covariance_to_data(fs, A, fc, coords, interp, cov, A_numpy):
-    "test the interp_covariance_to_data method"
-
-    # simple 1D test
-
-    nd = len(coords)
-
-    im = InterpolationMatrix(fs, coords)
-    im.assemble()
-
-    assert im.is_assembled
-
-    result_expected = np.linalg.solve(A_numpy, interp)
-    result_expected = np.dot(cov, result_expected)
-    result_expected = np.linalg.solve(A_numpy, result_expected)
-    result_expected = np.dot(interp.T, result_expected)
-
-    result_actual = im.interp_covariance_to_data(fc, A)
-
-    if COMM_WORLD.rank == 0:
-        assert_allclose(result_expected, result_actual, atol=1.e-10)
-    else:
-        assert result_actual.shape == (0, 0)
-
-@pytest.mark.mpi
-@pytest.mark.parametrize("my_ensemble", [1, 2], indirect=["my_ensemble"])
-@pytest.mark.parametrize("coords", [1, 2], indirect=["coords"])
-def test_InterpolationMatrix_interp_covariance_to_data_ensemble(my_ensemble, fs, A, fc, coords,
-                                                                interp, A_numpy, cov):
-    "test the interp_covariance_to_data method"
-
-    # simple 1D test
-
-    nd = len(coords)
-
-    im = InterpolationMatrix(fs, coords)
-    im.assemble()
-
-    result_expected = np.linalg.solve(A_numpy, interp)
-    result_expected = np.dot(cov, result_expected)
-    result_expected = np.linalg.solve(A_numpy, result_expected)
-    result_expected = np.dot(interp.T, result_expected)
-
-    result_actual = im.interp_covariance_to_data(fc, A, my_ensemble.ensemble_comm)
-
-    if my_ensemble.comm.rank == 0 and my_ensemble.ensemble_comm.rank == 0:
-        assert_allclose(result_expected, result_actual, atol=1.e-10)
-    else:
-        assert result_actual.shape == (0, 0)
-
-@pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
 def test_InterpolationMatrix_get_meshspace_column_vector(fs, coords, meshcoords):
     "test the get_meshspace_column_vector method"
 

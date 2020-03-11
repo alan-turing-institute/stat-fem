@@ -1,15 +1,12 @@
 import sys
 import numpy as np
-from firedrake import Function, COMM_SELF, COMM_WORLD
-from firedrake.ensemble import Ensemble
+from firedrake import Function
 from firedrake.petsc import PETSc
 from firedrake.functionspace import VectorFunctionSpace
 from firedrake.functionspaceimpl import WithGeometry
 from firedrake.interpolation import interpolate
 from firedrake.matrix import Matrix
 from firedrake.vector import Vector
-from .ForcingCovariance import ForcingCovariance
-from .solving_utils import _solve_forcing_covariance
 
 class InterpolationMatrix(object):
     "class representing an interpolation matrix"
@@ -146,75 +143,6 @@ class InterpolationMatrix(object):
         self._gather()
 
         return np.copy(self.dataspace_gathered.array)
-
-    def interp_covariance_to_data(self, G, A, ensemble_comm=COMM_SELF):
-        "interpolate a FEM prior covariance matrix to the data space"
-
-        if not isinstance(A, Matrix):
-            raise TypeError("A must be an assembled firedrake matrix")
-        if not isinstance(G, ForcingCovariance):
-            raise TypeError("G must be a ForcingCovariance class")
-        if not isinstance(ensemble_comm, type(COMM_SELF)):
-            raise TypeError("ensemble_comm must be an MPI communicator created from a firedrake Ensemble")
-
-        if not self.is_assembled:
-            self.assemble()
-
-        # use ensemble comm to split up solves across ensemble processes
-
-        v_tmp = PETSc.Vec().create(comm=ensemble_comm)
-        v_tmp.setSizes((-1, self.n_data))
-        v_tmp.setFromOptions()
-
-        imin, imax = v_tmp.getOwnershipRange()
-
-        v_tmp.destroy()
-
-        # create array for holding results
-        # if root on base comm, will have data at the end of the solve/interpolation
-        # otherwise, size will be zero
-
-        if self.comm.rank == 0:
-            n_local = self.n_data
-        else:
-            n_local = 0
-
-        # additional index is for the column vectors that this process owns in the
-        # ensemble, which has length imax - imin
-
-        result_tmparray = np.zeros((imax - imin, n_local))
-
-        for i in range(imin, imax):
-            rhs = self.get_meshspace_column_vector(i)
-            tmp = _solve_forcing_covariance(G, A, rhs)
-            result_tmparray[i - imin] = self.interp_mesh_to_data(tmp)
-
-        # create distributed vector for gathering results at root
-
-        cov_distrib = PETSc.Vec().create(comm=ensemble_comm)
-        cov_distrib.setSizes((n_local*(imax - imin), -1))
-        cov_distrib.setFromOptions()
-
-        cov_distrib.array = result_tmparray.flatten()
-
-        scatterfunc, cov_gathered = PETSc.Scatter.toZero(cov_distrib)
-
-        scatterfunc.scatter(cov_distrib, cov_gathered,
-                            mode=PETSc.ScatterMode.SCATTER_FORWARD)
-
-        out_array = np.copy(cov_gathered.array)
-        cov_distrib.destroy()
-        cov_gathered.destroy()
-
-        # reshape output -- if I am root on both the main comm and ensemble comm then
-        # I have the whole array. Other processes have nothing
-
-        if self.comm.rank == 0 and ensemble_comm.rank == 0:
-            outsize = (self.n_data, self.n_data)
-        else:
-            outsize = (0,0)
-
-        return np.reshape(out_array, outsize)
 
     def get_meshspace_column_vector(self, idx):
         "returns distributed meshspace column vector for a given data point"

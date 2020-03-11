@@ -10,7 +10,7 @@ from firedrake.solving import solve
 from .ForcingCovariance import ForcingCovariance
 from .InterpolationMatrix import InterpolationMatrix
 from .ObsData import ObsData
-from .solving_utils import _solve_forcing_covariance
+from .solving_utils import solve_forcing_covariance, interp_covariance_to_data
 
 def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
     """
@@ -46,7 +46,7 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
     # all processes participate in solving for the interpolated forcing covariance
     # returns a numpy array to root and dummy arrays to others
 
-    Cu = im.interp_covariance_to_data(G, A, ensemble_comm)
+    Cu = interp_covariance_to_data(im, G, A, im, ensemble_comm)
 
     # remaining solves are just done on ensemble root
 
@@ -71,7 +71,7 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
         # solve forcing covariance and interpolate to dataspace
 
-        tmp_meshspace_2 = _solve_forcing_covariance(G, A, tmp_meshspace_1)._scale(rho) + x.vector()
+        tmp_meshspace_2 = solve_forcing_covariance(G, A, tmp_meshspace_1)._scale(rho) + x.vector()
 
         tmp_dataspace_1 = im.interp_mesh_to_data(tmp_meshspace_2)
 
@@ -87,7 +87,7 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
         tmp_meshspace_1 = im.interp_data_to_mesh(tmp_dataspace_2)
 
-        tmp_meshspace_1 = _solve_forcing_covariance(G, A, tmp_meshspace_1)
+        tmp_meshspace_1 = solve_forcing_covariance(G, A, tmp_meshspace_1)
 
         x.assign((tmp_meshspace_2 - tmp_meshspace_1).function)
 
@@ -179,7 +179,7 @@ def solve_prior_covariance(A, b, G, data, ensemble_comm=COMM_SELF):
 
     # form interpolated prior covariance across all ensemble processes
 
-    Cu = im.interp_covariance_to_data(G, A, ensemble_comm)
+    Cu = interp_covariance_to_data(im, G, A, im, ensemble_comm)
 
     # solve base FEM (prior mean) and interpolate to data space on root
 
