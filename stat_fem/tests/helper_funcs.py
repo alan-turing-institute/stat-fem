@@ -172,6 +172,28 @@ def interp(meshcoords, coords):
     return interp
 
 @pytest.fixture
+def coords_predict():
+    return np.array([[0.05], [0.825], [0.45], [0.225], [0.775]])
+
+@pytest.fixture
+def interp_predict(meshcoords, coords_predict):
+
+    nd = 5
+    interp_ordered = np.transpose(np.array([[0.5, 0.5, 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                                            [0., 0., 0., 0., 0., 0., 0., 0., 0.75, 0.25, 0.],
+                                            [0., 0., 0., 0., 0.5, 0.5, 0., 0., 0., 0., 0.],
+                                            [0., 0., 0.75, 0.25, 0., 0., 0., 0., 0., 0., 0.],
+                                            [0., 0., 0., 0., 0., 0., 0., 0.25, 0.75, 0., 0.]]))
+    interp = np.zeros((nx + 1, nd))
+
+    meshcoords_ordered = np.linspace(0., 1., nx + 1)
+
+    for i in range(nx + 1):
+        interp[np.where(meshcoords == meshcoords_ordered[i]),:] = interp_ordered[i,:]
+
+    return interp
+
+@pytest.fixture
 def params():
     return np.zeros(3)
 
@@ -199,5 +221,19 @@ def K(coords, params):
 
     r = cdist(coords, coords)
     K = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)
+
+    return K
+
+@pytest.fixture
+def Ks_predict(coords_predict, params):
+    "create shared model discrepancy matrix with measurement error"
+
+    sigma = params[1]
+    l = params[2]
+
+    unc = 0.1
+
+    r = cdist(coords_predict, coords_predict)
+    K = np.exp(sigma)**2*np.exp(-0.5*r**2/np.exp(l)**2)+np.eye(len(coords_predict))*unc**2
 
     return K

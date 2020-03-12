@@ -3,10 +3,10 @@ import numpy as np
 from numpy.testing import assert_allclose
 from firedrake import Function, COMM_WORLD, solve
 from ..solving import solve_posterior, solve_posterior_covariance, solve_prior_covariance
-from ..solving import solve_prior_generating, solve_posterior_generating
+from ..solving import solve_prior_generating, solve_posterior_generating, predict_mean, predict_covariance
 from ..ObsData import ObsData
 from .helper_funcs import nx, params, my_ensemble, comm, mesh, fs, A, b, meshcoords, fc, od, interp, Ks
-from .helper_funcs import A_numpy, cov, K, coords
+from .helper_funcs import A_numpy, cov, K, coords, coords_predict, interp_predict, Ks_predict
 
 @pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
 def test_solve_posterior(fs, A, b, meshcoords, fc, od, interp, Ks, params):
@@ -213,3 +213,50 @@ def test_solve_posterior_generating(fs, A, b, fc, od, params):
         assert C_etay.shape == (0,0)
 
     fc.destroy()
+
+@pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
+def test_predict_mean(fs, A, b, fc, od, interp, params, coords_predict, interp_predict):
+    "test the function to predict the mean at new sensor locations"
+
+    mu_actual = predict_mean(A, b, fc, od, params, coords_predict)
+
+    rho = np.exp(params[0])
+
+    u = Function(fs)
+    solve_posterior(A, u, b, fc, od, params)
+    u_f = u.vector().gather()
+    print(interp_predict)
+
+    if COMM_WORLD.rank == 0:
+        mu_expect = rho*np.dot(interp_predict.T, u_f)
+        assert_allclose(mu_actual, mu_expect)
+    else:
+        assert mu_actual.shape == (0,)
+
+@pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
+def test_predict_covariance(fs, A, b, meshcoords, fc, od, interp, Ks, params, coords_predict, interp_predict, Ks_predict):
+    "test the function to predict the mean at new sensor locations"
+
+    Cu_actual = predict_covariance(A, b, fc, od, params, coords_predict, 0.1)
+
+    rho = np.exp(params[0])
+
+    full_data = ObsData(np.reshape(meshcoords, (-1, 1)), np.ones(nx + 1), 0.1)
+    mu_full, Cu_full = solve_prior_covariance(A, b, fc, full_data)
+
+    if COMM_WORLD.rank == 0:
+        Cuinv = np.linalg.inv(Cu_full)
+        Kinv = np.linalg.multi_dot([interp, np.linalg.inv(Ks), interp.T])
+        Cu_expect = (Ks_predict +
+                     rho**2*np.linalg.multi_dot([interp_predict.T, np.linalg.inv(Cuinv + rho**2*Kinv), interp_predict]))
+        assert_allclose(Cu_actual, Cu_expect, atol=1.e-3, rtol=1.e-3)
+    else:
+        assert Cu_actual.shape == (0,0)
+
+    Cu_actual = predict_covariance(A, b, fc, od, params, coords_predict.flatten(), 0.1)
+
+    if COMM_WORLD.rank == 0:
+        assert_allclose(Cu_actual, Cu_expect, atol=1.e-3, rtol=1.e-3)
+
+    with pytest.raises(AssertionError):
+        predict_covariance(A, b, fc, od, params, np.array([[0.2, 0.2]]), 0.1)

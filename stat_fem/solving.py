@@ -77,7 +77,7 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
         if G.comm.rank == 0:
             try:
-                L = cho_factor(Ks/rho**2 + Cu)
+                L = cho_factor(Ks + rho**2*Cu)
             except LinAlgError:
                 raise LinAlgError("Error attempting to compute the Cholesky factorization " +
                                   "of the model discrepancy plus forcing covariance")
@@ -87,7 +87,7 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
         tmp_meshspace_1 = im.interp_data_to_mesh(tmp_dataspace_2)
 
-        tmp_meshspace_1 = solve_forcing_covariance(G, A, tmp_meshspace_1)
+        tmp_meshspace_1 = solve_forcing_covariance(G, A, tmp_meshspace_1)._scale(rho**2)
 
         x.assign((tmp_meshspace_2 - tmp_meshspace_1).function)
 
@@ -131,19 +131,19 @@ def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
         try:
             Ks = data.calc_K_plus_sigma(params[1:])
             LK = cho_factor(Ks)
-            LC = cho_factor(Ks/rho**2 + Cuy)
+            LC = cho_factor(Ks + rho**2*Cuy)
         except LinAlgError:
             raise LinAlgError("Cholesky factorization of one of the covariance matrices failed")
 
         # compute posterior mean
 
         muy = rho*np.dot(Cuy, cho_solve(LK, data.get_data())) + muy
-        muy_tmp = np.dot(Cuy, cho_solve(LC, muy))
+        muy_tmp = rho**2*np.dot(Cuy, cho_solve(LC, muy))
         muy = muy - muy_tmp
 
         # compute posterior covariance
 
-        Cuy = Cuy - np.dot(Cuy, cho_solve(LC, Cuy))
+        Cuy = Cuy - rho**2*np.dot(Cuy, cho_solve(LC, Cuy))
 
     return muy, Cuy
 
@@ -258,3 +258,79 @@ def solve_posterior_generating(A, b, G, data, params, ensemble_comm=COMM_SELF):
         C_etay = np.zeros((0,0))
 
     return m_etay, C_etay
+
+def predict_mean(A, b, G, data, params, coords, ensemble_comm=COMM_SELF):
+    """
+    predict mean data values at unmeasured locations
+
+    returns vector of predicted sensor values on root process as numpy array. requires
+    only a small overhead above the computational work of finding the posterior mean
+    (i.e. get mean value at new sensor locations for "free" once you have solved the
+    posterior)
+    """
+    rho = np.exp(params[0])
+
+    x = Function(G.function_space)
+
+    solve_posterior(A, x, b, G, data, params, ensemble_comm)
+
+    im = InterpolationMatrix(G.function_space, coords)
+
+    return rho*im.interp_mesh_to_data(x.vector())
+
+def predict_covariance(A, b, G, data, params, coords, unc, ensemble_comm=COMM_SELF):
+    """
+    predict the mean and covariance of data values at unmeasured locations
+
+    returns vector of predicted sensor values on root process as numpy array. requires
+    doing an additional 2*n_pred FEM solves to get the full covariance at the new locations.
+    """
+    if not isinstance(A, Matrix):
+       raise TypeError("A must be a firedrake matrix")
+    if not isinstance(b, (Function, Vector)):
+        raise TypeError("b must be a firedrake function or vector")
+    if not isinstance(G, ForcingCovariance):
+        raise TypeError("G must be a forcing covariance")
+    if not isinstance(data, ObsData):
+        raise TypeError("data must be an ObsData type")
+    if not isinstance(ensemble_comm, type(COMM_WORLD)):
+        raise TypeError("ensemble_comm must be an MPI communicator created with a firedrake Ensemble")
+
+    coords = np.array(coords, dtype=np.float64)
+    if coords.ndim == 1:
+        coords = np.reshape(coords, (-1, 1))
+    assert coords.ndim == 2, "coords must be a 1d or 2d array"
+    assert coords.shape[1] == data.get_n_dim(), "axis 1 of coords must be the same length as the FEM dimension"
+
+    params = np.array(params, dtype=np.float64)
+    assert params.shape == (3,), "bad shape for model discrepancy parameters"
+    rho = np.exp(params[0])
+
+    im_data = InterpolationMatrix(G.function_space, data.get_coords())
+
+    im_coords = InterpolationMatrix(G.function_space, coords)
+
+    Cu   = interp_covariance_to_data(im_data, G, A, im_data, ensemble_comm)
+    if coords.shape[0] > data.get_n_obs():
+        Cucd = interp_covariance_to_data(im_coords, G, A, im_data, ensemble_comm)
+    else:
+        Cucd = interp_covariance_to_data(im_data, G, A, im_coords, ensemble_comm).T
+    Cucc = interp_covariance_to_data(im_coords, G, A, im_coords, ensemble_comm)
+
+    if ensemble_comm.rank == 0 and G.comm.rank == 0:
+        try:
+            Ks = data.calc_K_plus_sigma(params[1:])
+            LC = cho_factor(Ks + rho**2*Cu)
+        except LinAlgError:
+            raise LinAlgError("Cholesky factorization of one of the covariance matrices failed")
+
+        # compute predictive covariance
+
+        Cuy = Cucc - rho**2*np.dot(Cucd, cho_solve(LC, Cucd.T))
+
+        Cuy = ObsData(coords, np.zeros(coords.shape[0]), unc).calc_K_plus_sigma(params[1:]) + rho**2*Cuy
+
+    else:
+        Cuy = np.zeros((0,0))
+
+    return Cuy
