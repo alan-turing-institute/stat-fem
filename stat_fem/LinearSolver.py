@@ -2,7 +2,6 @@ import numpy as np
 from scipy.linalg import cho_factor, cho_solve
 from scipy.linalg import LinAlgError
 from firedrake import COMM_WORLD, COMM_SELF
-from firedrake.constant import Constant
 from firedrake.function import Function
 from firedrake.matrix import Matrix
 from firedrake.vector import Vector
@@ -48,6 +47,7 @@ class LinearSolver(object):
         self.x = None
         self.mu = None
         self.Cu = None
+        self.current_logpost = None
 
     def __del__(self):
         "deallocates interpolation matrix"
@@ -55,7 +55,7 @@ class LinearSolver(object):
         self.im.destroy()
 
     def set_params(self, params):
-        "sets parameter values"
+        "sets parameter values and solves for prior forcing covariance"
 
         params = np.array(params, dtype=np.float64)
         assert params.shape == (3,), "bad shape for model discrepancy parameters"
@@ -333,4 +333,83 @@ class LinearSolver(object):
 
         return Cuy
 
+    def logposterior(self, params):
+        "compute the negative log posterior for a particular set of parameters"
 
+        self.set_params(params)
+        rho = np.exp(self.params[0])
+
+        if self.Cu is None or self.mu is None:
+            self.solve_prior()
+
+        # compute log-likelihood on root process and broadcast
+
+        if COMM_WORLD.rank == 0:
+            KCu = rho**2*self.Cu + self.data.calc_K_plus_sigma(self.params[1:])
+            try:
+                L = cho_factor(KCu)
+            except LinAlgError:
+                raise LinAlgError("Error attempting to factorize the covariance matrix " +
+                                  "in model_loglikelihood")
+            invKCudata = cho_solve(L, self.data.get_data() - rho*self.mu)
+            log_posterior = 0.5*(self.data.get_n_obs()*np.log(2.*np.pi) +
+                                 2.*np.sum(np.log(np.diag(L[0]))) +
+                                 np.dot(self.data.get_data() - rho*self.mu, invKCudata))
+            for i in range(3):
+                if not self.priors[i] is None:
+                    log_posterior -= self.priors[i].logp(self.params[i])
+        else:
+            log_posterior = None
+
+        log_posterior = COMM_WORLD.bcast(log_posterior, root=0)
+
+        assert not log_posterior is None, "error in broadcasting the log likelihood"
+
+        COMM_WORLD.barrier()
+
+        return log_posterior
+
+    def logpost_deriv(self, params):
+        "compute the gradient of the log posterior"
+
+        self.set_params(params)
+        rho = np.exp(self.params[0])
+
+        if self.Cu is None or self.mu is None:
+            self.solve_prior()
+
+        # compute log-likelihood on root process
+
+        if COMM_WORLD.rank == 0:
+            KCu = rho**2*self.Cu + self.data.calc_K_plus_sigma(params[1:])
+            try:
+                L = cho_factor(KCu)
+            except LinAlgError:
+                raise LinAlgError("Error attempting to factorize the covariance matrix " +
+                                  "in model_loglikelihood")
+            invKCudata = cho_solve(L, self.data.get_data() - rho*self.mu)
+
+            K_deriv = self.data.calc_K_deriv(self.params[1:])
+
+            deriv = np.zeros(3)
+
+            deriv[0] = (-np.dot(self.mu, invKCudata) -
+                        rho*np.linalg.multi_dot([invKCudata, self.Cu, invKCudata]) +
+                        rho*np.trace(cho_solve(L, self.Cu)))
+            for i in range(0, 2):
+                deriv[i + 1] = -0.5*(np.linalg.multi_dot([invKCudata, K_deriv[i], invKCudata]) -
+                                    np.trace(cho_solve(L, K_deriv[i])))
+
+            for i in range(3):
+                if not self.priors[i] is None:
+                    deriv[i] -= self.priors[i].dlogpdtheta(self.params[i])
+        else:
+            deriv = None
+
+        deriv = COMM_WORLD.bcast(deriv, root=0)
+
+        assert not deriv is None, "error in broadcasting the log likelihood derivative"
+
+        COMM_WORLD.barrier()
+
+        return deriv

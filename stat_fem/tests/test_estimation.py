@@ -4,63 +4,20 @@ import pytest
 from firedrake import COMM_WORLD
 from mpi4py import MPI
 from ..solving import solve_prior_covariance
-from ..estimation import model_loglikelihood, model_loglikelihood_deriv, estimate_params_MLE
+from ..estimation import estimate_params_MAP
 from .helper_funcs import my_ensemble, comm, mesh, fs, A, b, fc, coords, od, params, Ks
 
 @pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
-def test_model_loglikelihood(A, b, fc, od, params, Ks):
-    "test the loglikelihood method"
-
-    mu, Cu = solve_prior_covariance(A, b, fc, od)
-
-    loglike_actual = model_loglikelihood(params, mu, Cu, od)
-
-    if COMM_WORLD.rank == 0:
-        KCu = Cu + Ks
-        loglike_expected = 0.5*(np.linalg.multi_dot([od.get_data() - mu,
-                                                     np.linalg.inv(KCu),
-                                                     od.get_data() - mu]) +
-                                np.log(np.linalg.det(KCu)) +
-                                od.get_n_obs()*np.log(2.*np.pi))
-    else:
-        loglike_expected = None
-
-    loglike_expected = COMM_WORLD.bcast(loglike_expected, root=0)
-
-    assert_allclose(loglike_expected, loglike_actual)
-
-@pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
-def test_model_loglikelihood_deriv(A, b, fc, od, params, Ks):
-    "test the model loglikelihood using finite differences"
-
-    dx = 1.e-8
-
-    mu, Cu = solve_prior_covariance(A, b, fc, od)
-
-    loglike_deriv_actual = model_loglikelihood_deriv(params, mu, Cu, od)
-
-    loglike_deriv_fd = np.zeros(3)
-
-    loglike_deriv_fd[0] = (model_loglikelihood(params + np.array([dx, 0., 0.]), mu, Cu, od) -
-                           model_loglikelihood(params                         , mu, Cu, od))/dx
-    loglike_deriv_fd[1] = (model_loglikelihood(params + np.array([0., dx, 0.]), mu, Cu, od) -
-                           model_loglikelihood(params                         , mu, Cu, od))/dx
-    loglike_deriv_fd[2] = (model_loglikelihood(params + np.array([0., 0., dx]), mu, Cu, od) -
-                           model_loglikelihood(params                         , mu, Cu, od))/dx
-
-    assert_allclose(loglike_deriv_actual, loglike_deriv_fd, atol=1.e-5, rtol=1.e-5)
-
-@pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
-def test_estimate_params_MLE(A, b, fc, od):
+def test_estimate_params_MAP(A, b, fc, od):
     "test the function to use MLE to estimate parameters"
 
     # fixed starting point
 
-    result = estimate_params_MLE(A, b, fc, od, start=np.zeros(3))
+    result = estimate_params_MAP(A, b, fc, od, start=np.zeros(3))
 
-    root_result = COMM_WORLD.bcast(result, root=0)
+    root_result = COMM_WORLD.bcast(result.params, root=0)
 
-    same_result = (np.allclose(root_result[0], result[0]) and np.allclose(root_result[1], result[1]))
+    same_result = np.allclose(root_result, result.params)
 
     diff_arg = COMM_WORLD.allreduce(int(not same_result), op=MPI.SUM)
 
@@ -70,11 +27,11 @@ def test_estimate_params_MLE(A, b, fc, od):
 
     np.random.seed(234)
 
-    result = estimate_params_MLE(A, b, fc, od, start=None)
+    result = estimate_params_MAP(A, b, fc, od, start=None)
 
-    root_result = COMM_WORLD.bcast(result, root=0)
+    root_result = COMM_WORLD.bcast(result.params, root=0)
 
-    same_result = (np.allclose(root_result[0], result[0]) and np.allclose(root_result[1], result[1]))
+    same_result = np.allclose(root_result, result.params)
 
     diff_arg = COMM_WORLD.allreduce(int(not same_result), op=MPI.SUM)
 
