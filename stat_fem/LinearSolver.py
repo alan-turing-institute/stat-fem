@@ -12,9 +12,81 @@ from .ObsData import ObsData
 from .solving_utils import solve_forcing_covariance, interp_covariance_to_data
 
 class LinearSolver(object):
-    "Class encapsulating all solves on the same set of model ingredients as methods"
+    """
+    Class encapsulating all solves on the same FEM model
+
+    This class forms the base of all Stat FEM computations for a linear problem. It requires
+    the base FEM problem, the forcing covariance (represented by a ``ForcingCovariance`` object),
+    the sensor locations, data, and uncertanties (represented by a ``ObsData`` object),
+    priors on the model discrepancy hyperparameters (optional), and an ensemble MPI communicator
+    for parallelizing the covariance solves (optional).
+
+    Once these are set, the prior solves can be done and cached, which is generally the most
+    computationally expensive part of the modeling. The class also contains methods for
+    performing parameter estimation (a ``logposterior`` to compute the negative log posterior
+    or marginal likelihood if no priors are specified and its associated derivatives), and
+    prediction of sensor values and uncertainties at unmeasured locations.
+
+    :ivar A: the FEM stiffness matrix
+    :type A: Firedrake Matrix
+    :ivar b: the FEM RHS vector
+    :type b: Firedrake Vector or Function
+    :ivar G: Forcing Covariance sparse matrix
+    :type G: ForcingCovariance
+    :ivar data: Sensor locations, observed values, and uncertainties
+    :type data: ObsData
+    :ivar priors: list of prior distributions on hyperparameters or all ``None`` if uninformative
+                  priors are assumed
+    :type priors: list
+    :ivar ensemble_comm: Firedrake Ensemble communicator for parallelizing covariance solves
+    :type ensemble_comm: MPI Communicator
+    :ivar params: Current set of parameters (a numpy array of length 3) representing the
+                  data/model scaling factor :math:`{\rho}`, model discrepancy covariance,
+                  and model discrepancy correlation length. All parameters are on a logarithmic
+                  scale to enforce positivity.
+    :type params: ndarray
+    :ivar im: interpolation matrix used to interpolate between FEM mesh and sensor data
+    :type im: InterpolationMatrix
+    :ivar x: Prior FEM solution on distributed FEM mesh
+    :type x: Firedrake Function
+    :ivar mu: Prior FEM solution interpolated to sensor locations on root process (other processes
+              have arrays of length 0)
+    :type mu: ndarray
+    :ivar Cu: Prior FEM covariance interpolated to sensor locations on root process (other processes
+              have arrays of shape ``(0, 0)``
+    :type Cu: ndarray
+    :ivar current_logpost: Current value of the negative log-posterior (or log likelihood if prior
+                           is uninformative)
+    :type current_logpost: float
+    """
     def __init__(self, A, b, G, data, priors=[None, None, None], ensemble_comm=COMM_SELF):
-        "Create a new linear solver for statistical FEM problems"
+        """
+        Create a new object encapsulating all solves on the same FEM model
+
+        Initialize a new object for a given FEM problem to perform the Stat FEM solves.
+
+        This class forms the base of all Stat FEM computations for a linear problem. It requires
+        the base FEM problem, the forcing covariance (represented by a ``ForcingCovariance`` object),
+        the sensor locations, data, and uncertanties (represented by a ``ObsData`` object),
+        priors on the model discrepancy hyperparameters (optional), and an ensemble MPI communicator
+        for parallelizing the covariance solves (optional).
+
+        :param A: the FEM stiffness matrix
+        :type A: Firedrake Matrix
+        :param b: the FEM RHS vector
+        :type b: Firedrake Vector or Function
+        :param G: Forcing Covariance sparse matrix
+        :type G: ForcingCovariance
+        :param data: Sensor locations, observed values, and uncertainties
+        :type data: ObsData
+        :param priors: list of prior distributions on hyperparameters or all ``None`` if uninformative
+                       priors are assumed (optional)
+        :type priors: list
+        :param ensemble_comm: Firedrake Ensemble communicator for parallelizing covariance solves (optional)
+        :type ensemble_comm: MPI Communicator
+        :returns: new ``LinearSolver`` instance
+        :rtype: LinearSolver
+        """
 
         if not isinstance(A, Matrix):
            raise TypeError("A must be a firedrake matrix")
@@ -50,12 +122,29 @@ class LinearSolver(object):
         self.current_logpost = None
 
     def __del__(self):
-        "deallocates interpolation matrix"
+        """
+        Delete the LinearSolver object
+
+        When deleting a LinearSolver, one needs to deallocate the memory for the interpolation
+        matrix. No inputs or return values.
+        """
 
         self.im.destroy()
 
     def set_params(self, params):
-        "sets parameter values and solves for prior forcing covariance"
+        """
+        Sets parameter values
+
+        Checks and sets new values of the hyperparameters. New parameters must be a numpy
+        array of length 3. First parameter is the data/model scaling factor :math:`{\rho}`,
+        second parameter is the model discrepancy covariance, and the third parameter is
+        the model discrepancy correlation length. All parameters are assumed to be on a
+        logarithmic scale to enforce positivity.
+
+        :param params: New set of parameters (must be a numpy array of length 3)
+        :type params: ndarray
+        :returns: None
+        """
 
         params = np.array(params, dtype=np.float64)
         assert params.shape == (3,), "bad shape for model discrepancy parameters"
@@ -64,18 +153,25 @@ class LinearSolver(object):
 
     def solve_prior(self):
         """
-        solve base (prior) fem plus covariance interpolated to the data locations
+        Solve base (prior) FEM plus covariance interpolated to the data locations
 
-        returns solution as numpy arrays on the root process (rank 0) and caches the values
-        for use in further computations (again on the root process)
+        This method solves the prior FEM and covariance interpolated to the sensor locations.
+        It does not require setting parameter values, as the model discrepancy does not
+        influence these results. The covariance is cached as it is expensive to compute
+        and is re-used in all other solves.
 
-        note that unlike the meshspace solver, this uses a return value rather than a
-        Firedrake/PETSc style interface to create the solution. I was unable to get this
-        to work by modifying the arrays in the function. This has the benefit of not requiring
-        the user to pre-set the array sizes (the arrays are different sizes on the processes,
-        as the solution is collected at the root of both the spatial comm and the ensemble comm)
+        In addition to caching the results, the method returns solution as numpy arrays
+        on the root process (rank 0).
 
-        Note that since the data locations are needed, this still requires an ObsData object.
+        Note that unlike the solve done in the meshspace, this uses a return value rather than a
+        Firedrake/PETSc style interface to place the solution in a pre-allocated ``Function``.
+        This is because each process has a different array size, so would require correctly
+        pre-allocating arrays of different lengths on each process.
+
+        :returns: FEM prior mean and covariance (as a tuple of numpy arrays) on the root process.
+                  Non-root processes return numpy arrays of shape ``(0,)`` (mean) and ``(0, 0)``
+                  (covariance).
+        :rtype: tuple of ndarrays
         """
 
         # form interpolated prior covariance across all ensemble processes
@@ -96,12 +192,19 @@ class LinearSolver(object):
 
     def solve_posterior(self, x):
         """
-        Solve for the FEM posterior conditioned on the data. solution is stored in the
-        provided firedrake function x
+        Solve FEM posterior in mesh space
 
-        Note that the solution is only stored in the root of the ensemble comm if the
-        forcing covariance solves are parallelized. The Firedrake function on other
-        processes will not be modified.
+        Solve for the FEM posterior conditioned on the data on the FEM mesh. The solution
+        is stored in the preallocated Firedrake ``Function``.
+
+        Note that if an ensemble communicator was used to parallelize the covariance solves,
+        the solution is only stored in the root of the ensemble communicator. The Firedrake
+        ``Function`` on the other processes will not be modified.
+
+        :param x: Firedrake ``Function`` for holding the solution. This is modified in place
+                  by the method.
+        :type x: Firedrake Function
+        :returns: None
         """
 
         # create interpolation matrix if not cached
@@ -158,15 +261,20 @@ class LinearSolver(object):
 
     def solve_posterior_covariance(self):
         """
-        solve for conditioned fem plus covariance in the data space
+        Solve posterior FEM and covariance interpolated to the data locations
 
-        returns solution as numpy arrays on the root process (rank 0)
+        This method solves the posterior FEM and covariance interpolated to the sensor
+        locations. The method returns solution as numpy arrays on the root process (rank 0).
 
-        note that unlike the meshspace solver, this uses a return value rather than a
-        Firedrake/PETSc style interface to create the solution. I was unable to get this
-        to work by modifying the arrays in the function. This has the benefit of not requiring
-        the user to pre-set the array sizes (the arrays are different sizes on the processes,
-        as the solution is collected at the root of both the spatial comm and the ensemble comm)
+        Note that unlike the solve done in the meshspace, this uses a return value rather than a
+        Firedrake/PETSc style interface to place the solution in a pre-allocated ``Function``.
+        This is because each process has a different array size, so would require correctly
+        pre-allocating arrays of different lengths on each process.
+
+        :returns: FEM posterior mean and covariance (as a tuple of numpy arrays) on the root process.
+                  Non-root processes return numpy arrays of shape ``(0,)`` (mean) and ``(0, 0)``
+                  (covariance).
+        :rtype: tuple of ndarrays
         """
 
         # create interpolation matrix if not cached
@@ -204,7 +312,18 @@ class LinearSolver(object):
         return muy, Cuy
 
     def solve_prior_generating(self):
-        "solve for the prior of the generating process"
+        """
+        Solve for the prior of the generating process
+
+        This method solves for the prior of the generating process before looking at the data.
+        The main computational cost is solving for the prior of the covariance, so if this is
+        cached from a previous solve this is a simple calculation.
+
+        :returns: FEM prior mean and covariance of the true generating process (as a tuple of
+                  numpy arrays) on the root process. Non-root processes return numpy arrays of
+                  shape ``(0,)`` (mean) and ``(0, 0)`` (covariance).
+        :rtype: tuple of ndarrays
+        """
 
         # create interpolation matrix if not cached
 
@@ -226,7 +345,18 @@ class LinearSolver(object):
         return m_eta, C_eta
 
     def solve_posterior_generating(self):
-        "solve for the posterior of the generating process"
+        """
+        Solve for the posterior of the generating process
+
+        This method solves for the posterior of the generating process before looking at the data.
+        The main computational cost is solving for the prior of the covariance, so if this is
+        cached from a previous solve this is a simple calculation.
+
+        :returns: FEM posterior mean and covariance of the true generating process (as a tuple of
+                  numpy arrays) on the root process. Non-root processes return numpy arrays of
+                  shape ``(0,)`` (mean) and ``(0, 0)`` (covariance).
+        :rtype: tuple of ndarrays
+        """
 
         # create interpolation matrix if not cached
 
@@ -249,12 +379,20 @@ class LinearSolver(object):
 
     def predict_mean(self, coords):
         """
-        predict mean data values at unmeasured locations
+        Compute the predictive mean
 
-        returns vector of predicted sensor values on root process as numpy array. requires
-        only a small overhead above the computational work of finding the posterior mean
-        (i.e. get mean value at new sensor locations for "free" once you have solved the
-        posterior)
+        This method computes the predictive mean of data values at unmeasured locations. It returns
+        the vector of predicted sensor values on the root process as numpy array. It requires only a
+        small overhead above the computational work of finding the posterior mean (i.e. you get
+        the mean value at new sensor locations for "free" once you have solved the posterior).
+
+        :param coords: Spatial coordinates at which the mean will be predicted. Must be a
+                       2D Numpy array (or a 1D array, which will assume the second axis has length
+                       1)
+        :type coords: ndarray
+        :returns: FEM prediction at specified sensor locations as a numpy array on the root process.
+                  All other processes will have a numpy array of length 0.
+        :rtype: ndarray
         """
 
         coords = np.array(coords, dtype=np.float64)
@@ -285,10 +423,29 @@ class LinearSolver(object):
 
     def predict_covariance(self, coords, unc):
         """
-        predict the mean and covariance of data values at unmeasured locations
+        Compute the predictive covariance
 
-        returns vector of predicted sensor values on root process as numpy array. requires
-        doing an additional 2*n_pred FEM solves to get the full covariance at the new locations.
+        This method computes the predictive covariance of data values at unmeasured locations.
+        It returns the array of predicted sensor value covariances on the root process as numpy
+        array. Unlike the mean, the predictive covariance requires doing two additional sets of
+        covariance solves: one on the new sensor locations (to get the baseline covariance),
+        and one set of solves that interpolates between the predictive points and the original
+        sensor locations. This can be thought of as doing the covariance solves at the new points
+        to get a baseline uncertainty, and then the cross-solves determine if any of the sensor
+        data is close enough to the predictive points to reduce this uncertainty.
+
+        :param coords: Spatial coordinates at which the mean will be predicted. Must be a
+                       2D Numpy array (or a 1D array, which will assume the second axis has length
+                       1)
+        :type coords: ndarray
+        :param unc: Uncertainty for unmeasured sensor locations (i.e. the statistical error one would
+                    expect if these measurements were made). Can be a single non-negative float,
+                    or an array of non-negative floats with the same length as the first axis of
+                    ``coords``.
+        :type unc: float or ndarray
+        :returns: FEM predictive covariance at specified sensor locations as a numpy array on the
+                  root process. All other processes will have a numpy array of shape ``(0, 0)``.
+        :rtype: ndarray
         """
 
         coords = np.array(coords, dtype=np.float64)
@@ -334,7 +491,27 @@ class LinearSolver(object):
         return Cuy
 
     def logposterior(self, params):
-        "compute the negative log posterior for a particular set of parameters"
+        """
+        Compute the negative log posterior for a particular set of parameters
+
+        Computes the negative log posterior (negative marginal log-likelihood minus any
+        prior log-probabilities). This is computed on the root process and then broadcast
+        to all processes.
+
+        The main computational expense is computing the prior mean and covariance, which only
+        needs to be done once and can be cached. This also requires computing the Cholesky
+        decomposition of the covariance plus model discrepancy.
+
+        New parameters must be a numpy array of length 3. First parameter is the data/model
+        scaling factor :math:`{\rho}`, second parameter is the model discrepancy covariance,
+        and the third parameter is the model discrepancy correlation length. All parameters
+        are assumed to be on a logarithmic scale to enforce positivity.
+
+        :param params: New set of parameters (must be a numpy array of length 3)
+        :type params: ndarray
+        :returns: negative log posterior
+        :rtype: float
+        """
 
         self.set_params(params)
         rho = np.exp(self.params[0])
@@ -370,7 +547,30 @@ class LinearSolver(object):
         return log_posterior
 
     def logpost_deriv(self, params):
-        "compute the gradient of the log posterior"
+        """
+        Compute the gradient of the negative log posterior for a particular set of parameters
+
+        Computes the gradient of the negative log posterior (negative marginal log-likelihood
+        minus any prior log-probabilities). This is computed on the root process and then broadcast
+        to all processes.
+
+        The main computational expense is computing the prior mean and covariance, which only
+        needs to be done once and can be cached. This also requires computing the Cholesky
+        decomposition of the covariance plus model discrepancy.
+
+        New parameters must be a numpy array of length 3. First parameter is the data/model
+        scaling factor :math:`{\rho}`, second parameter is the model discrepancy covariance,
+        and the third parameter is the model discrepancy correlation length. All parameters
+        are assumed to be on a logarithmic scale to enforce positivity.
+
+        The returned log posterior gradient is a numpy array of length 3, with each component
+        corresponding to the derivative of each of the input parameters.
+
+        :param params: New set of parameters (must be a numpy array of length 3)
+        :type params: ndarray
+        :returns: gradient of the negative log posterior
+        :rtype: ndarray
+        """
 
         self.set_params(params)
         rho = np.exp(self.params[0])
