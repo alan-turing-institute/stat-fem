@@ -8,8 +8,28 @@ Welcome to stat-fem's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Classes:
 
+   ForcingCovariance
+   ObsData
+   LinearSolver
+   InterpolationMatrix
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Additional Functions
+
+   assemble
+   estimation
+   solving
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Utilities
+
+   covariance_functions
+   solving_utils
 
 
 Indices and tables

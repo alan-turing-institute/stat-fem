@@ -11,7 +11,7 @@ from firedrake.ufl_expr import TestFunction
 from firedrake.vector import Vector
 from ufl import dx
 from firedrake.petsc import PETSc
-from .CovarianceFunctions import sqexp
+from .covariance_functions import sqexp
 
 class ForcingCovariance(object):
     """

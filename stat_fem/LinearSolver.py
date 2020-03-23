@@ -12,7 +12,7 @@ from .ObsData import ObsData
 from .solving_utils import solve_forcing_covariance, interp_covariance_to_data
 
 class LinearSolver(object):
-    """
+    r"""
     Class encapsulating all solves on the same FEM model
 
     This class forms the base of all Stat FEM computations for a linear problem. It requires
@@ -59,8 +59,9 @@ class LinearSolver(object):
                            is uninformative)
     :type current_logpost: float
     """
+
     def __init__(self, A, b, G, data, priors=[None, None, None], ensemble_comm=COMM_SELF):
-        """
+        r"""
         Create a new object encapsulating all solves on the same FEM model
 
         Initialize a new object for a given FEM problem to perform the Stat FEM solves.
@@ -122,7 +123,7 @@ class LinearSolver(object):
         self.current_logpost = None
 
     def __del__(self):
-        """
+        r"""
         Delete the LinearSolver object
 
         When deleting a LinearSolver, one needs to deallocate the memory for the interpolation
@@ -132,7 +133,7 @@ class LinearSolver(object):
         self.im.destroy()
 
     def set_params(self, params):
-        """
+        r"""
         Sets parameter values
 
         Checks and sets new values of the hyperparameters. New parameters must be a numpy
@@ -152,7 +153,7 @@ class LinearSolver(object):
         self.params = params
 
     def solve_prior(self):
-        """
+        r"""
         Solve base (prior) FEM plus covariance interpolated to the data locations
 
         This method solves the prior FEM and covariance interpolated to the sensor locations.
@@ -191,7 +192,7 @@ class LinearSolver(object):
         return self.mu, self.Cu
 
     def solve_posterior(self, x):
-        """
+        r"""
         Solve FEM posterior in mesh space
 
         Solve for the FEM posterior conditioned on the data on the FEM mesh. The solution
@@ -260,7 +261,7 @@ class LinearSolver(object):
 
 
     def solve_posterior_covariance(self):
-        """
+        r"""
         Solve posterior FEM and covariance interpolated to the data locations
 
         This method solves the posterior FEM and covariance interpolated to the sensor
@@ -312,7 +313,7 @@ class LinearSolver(object):
         return muy, Cuy
 
     def solve_prior_generating(self):
-        """
+        r"""
         Solve for the prior of the generating process
 
         This method solves for the prior of the generating process before looking at the data.
@@ -345,7 +346,7 @@ class LinearSolver(object):
         return m_eta, C_eta
 
     def solve_posterior_generating(self):
-        """
+        r"""
         Solve for the posterior of the generating process
 
         This method solves for the posterior of the generating process before looking at the data.
@@ -378,7 +379,7 @@ class LinearSolver(object):
         return m_etay, C_etay
 
     def predict_mean(self, coords):
-        """
+        r"""
         Compute the predictive mean
 
         This method computes the predictive mean of data values at unmeasured locations. It returns
@@ -422,7 +423,7 @@ class LinearSolver(object):
         return mu
 
     def predict_covariance(self, coords, unc):
-        """
+        r"""
         Compute the predictive covariance
 
         This method computes the predictive covariance of data values at unmeasured locations.
@@ -491,7 +492,7 @@ class LinearSolver(object):
         return Cuy
 
     def logposterior(self, params):
-        """
+        r"""
         Compute the negative log posterior for a particular set of parameters
 
         Computes the negative log posterior (negative marginal log-likelihood minus any
@@ -547,7 +548,7 @@ class LinearSolver(object):
         return log_posterior
 
     def logpost_deriv(self, params):
-        """
+        r"""
         Compute the gradient of the negative log posterior for a particular set of parameters
 
         Computes the gradient of the negative log posterior (negative marginal log-likelihood

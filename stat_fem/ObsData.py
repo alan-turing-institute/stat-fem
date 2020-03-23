@@ -1,6 +1,6 @@
 import numpy as np
 from firedrake import COMM_WORLD, COMM_SELF
-from .CovarianceFunctions import sqexp, sqexp_deriv
+from .covariance_functions import sqexp, sqexp_deriv
 
 class ObsData(object):
     """

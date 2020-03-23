@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
-from ..CovarianceFunctions import sqexp, sqexp_deriv, sqexp_hessian, calc_r2
+from ..covariance_functions import sqexp, sqexp_deriv, sqexp_hessian, calc_r2
 
 def test_sqexp():
     "test the squared exponential covariance function"
