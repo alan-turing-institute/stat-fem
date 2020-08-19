@@ -3,7 +3,7 @@ from .InterpolationMatrix import InterpolationMatrix
 import firedrake.assemble
 
 def assemble(f, tensor=None, bcs=None, form_compiler_parameters=None,
-             inverse=False, mat_type=None, sub_mat_type=None,
+             mat_type=None, sub_mat_type=None,
              appctx={}, options_prefix=None, **kwargs):
     """
     Overloaded assembly function to include assembly of stat-fem operators
@@ -50,8 +50,6 @@ def assemble(f, tensor=None, bcs=None, form_compiler_parameters=None,
       form.  For example, if a ``quadrature_degree`` of 4 is
       specified in this argument, but a degree of 3 is requested in
       the measure, the latter will be used.
-    :param inverse: (optional) if f is a 2-form, then assemble the inverse
-      of the local matrices.
     :param mat_type: (optional) string indicating how a 2-form (matrix) should be
       assembled -- either as a monolithic matrix ('aij' or 'baij'), a block matrix
       ('nest'), or left as a :class:`.ImplicitMatrix` giving matrix-free
@@ -74,7 +72,7 @@ def assemble(f, tensor=None, bcs=None, form_compiler_parameters=None,
         f.assemble()
         return f
     else:
-        return firedrake.assemble(f, tensor, bcs, form_compiler_parameters, inverse,
+        return firedrake.assemble(f, tensor, bcs, form_compiler_parameters,
                                   mat_type, sub_mat_type, appctx, options_prefix, **kwargs)
 
 
