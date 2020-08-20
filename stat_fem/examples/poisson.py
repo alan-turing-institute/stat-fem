@@ -3,7 +3,7 @@ from firedrake import UnitSquareMesh, FunctionSpace, TrialFunction, TestFunction
 from firedrake import SpatialCoordinate, dx, pi, sin, dot, grad, DirichletBC
 from firedrake import assemble, Function, solve
 import stat_fem
-from stat_fem.CovarianceFunctions import sqexp
+from stat_fem.covariance_functions import sqexp
 import matplotlib.pyplot as plt
 
 # Set up base FEM, which solves Poisson's equation on a square mesh
