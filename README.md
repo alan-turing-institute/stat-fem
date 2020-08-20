@@ -15,26 +15,28 @@ challenging problems in data-driven numerical analysis.
 
 ### Installing Firedrake
 
-stat-fem requires a working Firedrake installation. The easiest way to obtain Firedrake is to
+`stat-fem` requires a working Firedrake installation. The easiest way to obtain Firedrake is to
 follow the installation instructions on the [firedrake homepage](https://www.firedrakeproject.org).
 
 ### Installing stat-fem
 
 Once you have installed Firedrake, activate the virtual environment that was created as part of
-the installation process. Within the running virtual environment, switch to the main stat-fem
+the installation process. Within the running virtual environment, switch to the main `stat-fem`
 directory and proceed with the installation by entering:
 
-   $ pip install -r requirements.txt
-   $ python setup.py install
+```bash
+$ pip install -r requirements.txt
+$ python setup.py install
+```
 
-This will use pip to install any missing dependencies (notably Scipy) and install the stat-fem
+This will use `pip` to install any missing dependencies (notably Scipy) and install the `stat-fem`
 package within the Firedrake virtual environment.
 
 ### Using a Docker Container
 
-Alternatively, you can download a working Firedrake Docker container that has the stat-fem code
-and dependencies installed within the Firedrake virtual environment directly from Github.
-See the "Releases" tab on the main Github page to download the container.
+Alternatively, we provide a working Firedrake Docker container that has the `stat-fem` code
+and dependencies installed within the Firedrake virtual environment. See the `docker`
+directory in the `stat-fem` repository.
 
 ### Testing the installation
 
@@ -55,9 +57,11 @@ The various solves required for the Statistical FEM can be done in parallel in s
 
 To parallelize the solution of the base FEM model, you can simply run your Python script under MPI
 to divide the FEM mesh among the given number of processes. This is handled natively in Firedrake
-as well as stat-fem. For instance, depending on your system setup you would enter: ::
+as well as stat-fem. For instance, depending on your system setup you would enter:
 
-   $ mpiexec -n 4 python model.py
+```bash
+$ mpiexec -n 4 python model.py
+```
 
 The nodes owned by each process are determined when forming the mesh, and this manages all interprocess
 communication when performing the matrix inversion to solve the resulting linear system.
@@ -90,22 +94,24 @@ When running a script using this type of parallelism, the user must specify how 
 MPI processes across the two different types of solves. This is done when constructing the
 `Ensemble` instance. For example, if you wish you use 4 processes total, with 2 dedicated to each
 base solve and 2 processes over which the data constraint solves will be done, you would do the
-following in the file `model.py`: ::
+following in the file `model.py`:
 
-   from firedrake import Ensemble, COMM_WORLD, UnitSquareMesh
+```python
+from firedrake import Ensemble, COMM_WORLD, UnitSquareMesh
 
-   my_ensemble = Ensemble(COMM_WORLD, 2)
+my_ensemble = Ensemble(COMM_WORLD, 2)
 
-   # divide mesh across two processes in base comm
-   mesh = UnitSquareMesh(51, 51, comm=my_ensemble.comm)
+# divide mesh across two processes in base comm
+mesh = UnitSquareMesh(51, 51, comm=my_ensemble.comm)
 
-   ...
+...
+```
 
 Then run the python script with `mpiexec -n 4 python model.py`
 
 Note that it is up to the user to ensure that the total number of processes is divisible by the base
-number of processes. One way to handle this is using input arguments to manage the number of
-processes in a particular script.
+number of processes. One way to handle this more robustly would be to use input arguments to manage
+the number of processes in a particular script.
 
 ## Example Scripts
 
