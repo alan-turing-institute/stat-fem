@@ -19,6 +19,6 @@ script:
 after_success:
   - docker cp $container_name:${src_dir}stat-fem/stat_fem/tests/.coverage .
   - token="a709d4d8-f453-4903-975e-0d028ac9602d"
-  - bash <(curl -s https://codecov.io/bash) -t token
+  - bash <(curl -s https://codecov.io/bash) -t ${token}
 after_script:
   - docker stop $container_name

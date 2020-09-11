@@ -2,6 +2,10 @@
 
 Python tools for solving data-constrained finite element problems
 
+[![Build Status](https://travis-ci.com/alan-turing-institute/stat-fem.svg?branch=master)](https://travis-ci.com/alan-turing-institute/stat-fem)
+[![codecov](https://codecov.io/gh/alan-turing-institute/stat-fem/branch/master/graph/badge.svg)](https://codecov.io/gh/alan-turing-institute/stat-fem)
+[![Documentation Status](https://readthedocs.org/projects/stat-fem/badge/?version=latest)](https://stat-fem.readthedocs.io/en/latest/?badge=latest)
+
 ## Overview
 
 This package provides a Python implementation of the Statistical Finite Element Method (FEM) as
