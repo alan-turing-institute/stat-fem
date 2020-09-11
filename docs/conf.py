@@ -41,8 +41,6 @@ sys.modules["firedrake.solving"] = unittest.mock.Mock()
 sys.modules["ufl"] = unittest.mock.Mock()
 sys.modules["mpi4py"] = unittest.mock.Mock()
 
-autodoc_mock_imports = ["firedrake", "ufl"]
-
 project = 'stat-fem'
 copyright = '2020'
 author = 'Eric Daub'
@@ -67,11 +65,10 @@ version = re.sub(r"(\d+\.\d+)", r"\1", stat_fem.__version__)
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
-#    'sphinxcontrib.mockautodoc',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+# templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -114,7 +111,7 @@ html_theme = 'sphinxdoc'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+#html_static_path = ['_static']
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -179,7 +176,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     (master_doc, 'stat-fem', 'stat-fem Documentation',
-     author, 'stat-fem', 'One line description of project.',
+     author, 'stat-fem', 'Python tools for solving data-constrained finite element problems',
      'Miscellaneous'),
 ]
 
