@@ -17,8 +17,6 @@ install:
 script:
   - docker exec $container_name bash -c "$activate; cd ${src_dir}stat-fem/stat_fem/tests/; make tests"
 after_success:
-  - docker cp $container_name:${src_dir}stat-fem/stat_fem/tests/.coverage .
-  - token="a709d4d8-f453-4903-975e-0d028ac9602d"
-  - bash <(curl -s https://codecov.io/bash) -t ${token}
+  - docker exec $container_name bash -c "$activate; cd ${src_dir}stat-fem/stat_fem/tests/; bash <(curl -s https://codecov.io/bash)"
 after_script:
   - docker stop $container_name
