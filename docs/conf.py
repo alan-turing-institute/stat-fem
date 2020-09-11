@@ -38,8 +38,9 @@ sys.modules["firedrake.vector"] = unittest.mock.Mock()
 sys.modules["firedrake.petsc"] = unittest.mock.Mock()
 sys.modules["firedrake.matrix"] = unittest.mock.Mock()
 sys.modules["firedrake.solving"] = unittest.mock.Mock()
+sys.modules["ufl"] = unittest.mock.Mock()
 
-autodoc_mock_imports = ["firedrake"]
+autodoc_mock_imports = ["firedrake", "ufl"]
 
 project = 'stat-fem'
 copyright = '2020'
