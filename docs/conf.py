@@ -19,6 +19,10 @@
 
 # -- Project information -----------------------------------------------------
 
+# mock firedrake to allow importing
+
+autodoc_mock_imports = ["firedrake"]
+
 project = 'stat-fem'
 copyright = '2020'
 author = 'Eric Daub'
