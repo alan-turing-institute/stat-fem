@@ -13,7 +13,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 # import os
-# import sys
+import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
 
@@ -21,13 +21,30 @@
 
 # mock firedrake to allow importing
 
-autodoc_mock_imports = ["numpy", "scipy", "firedrake"]
+# get version from package
+
+import unittest.mock
+
+sys.modules["firedrake"] = unittest.mock.Mock()
+sys.modules["firedrake.assemble"] = unittest.mock.Mock()
+sys.modules["firedrake.constant"] = unittest.mock.Mock()
+sys.modules["firedrake.ensemble"] = unittest.mock.Mock()
+sys.modules["firedrake.function"] = unittest.mock.Mock()
+sys.modules["firedrake.functionspace"] = unittest.mock.Mock()
+sys.modules["firedrake.functionspaceimpl"] = unittest.mock.Mock()
+sys.modules["firedrake.interpolation"] = unittest.mock.Mock()
+sys.modules["firedrake.ufl_expr"] = unittest.mock.Mock()
+sys.modules["firedrake.vector"] = unittest.mock.Mock()
+sys.modules["firedrake.petsc"] = unittest.mock.Mock()
+sys.modules["firedrake.matrix"] = unittest.mock.Mock()
+sys.modules["firedrake.solving"] = unittest.mock.Mock()
+
+autodoc_mock_imports = ["firedrake"]
 
 project = 'stat-fem'
 copyright = '2020'
 author = 'Eric Daub'
 
-# get version from package
 import stat_fem
 import re
 # The full version X.Y.Z with development version if needed
@@ -48,6 +65,7 @@ version = re.sub(r"(\d+\.\d+)", r"\1", stat_fem.__version__)
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
+#    'sphinxcontrib.mockautodoc',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
