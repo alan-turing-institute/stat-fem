@@ -21,7 +21,7 @@
 
 # mock firedrake to allow importing
 
-autodoc_mock_imports = ["firedrake"]
+autodoc_mock_imports = ["numpy", "scipy", "firedrake"]
 
 project = 'stat-fem'
 copyright = '2020'
