@@ -2,11 +2,21 @@ language: python
 python:
   - "3.7"
 before_install:
+  - sudo apt-get -y install cmake gfortran libblas-dev liblapack-dev python3-pip python3-tk python3-venv libboost-dev
+  - cd /home/travis/build/alan-turing-institute/
   - curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
-  - python firedrake-install
+  - travis wait 30 mvn python firedrake-install
 install:
-  - pwd
-  - ls
+  - source /home/travis/build/alan-turing-institute/firedrake/bin/activate
+  - cd /home/travis/build/alan-turing/institute/stat-fem/
+  - pip install -r requirements.txt
+  - pip install -r requirements-dev.txt
+  - python setup.py install
+script:
+  - cd /home/travis/build/alan-turing-institute/stat-fem/stat_fem/tests
+  - make tests
+after_success:
+  - codecov
 
 
 
