@@ -1,24 +1,12 @@
 language: python
 python:
   - "3.7"
-services:
-  - docker
 before_install:
-  - container_source="firedrakeproject/firedrake:latest"
-  - container_name="test"
-  - docker pull $container_source
-  - docker create --name=$container_name -it $container_source
-  - docker start $container_name
+  - curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
+  - python firedrake-install
 install:
-  - activate="source /home/firedrake/firedrake/bin/activate"
-  - src_dir="/home/firedrake/firedrake/src"
-  - test_dir="${src_dir}/stat-fem/stat_fem/tests"
-  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-  - docker exec $container_name bash -c "$activate; firedrake-update"
-  - docker exec $container_name bash -c "$activate; cd $src_dir; git clone --branch=$BRANCH https://github.com/alan-turing-institute/stat-fem.git; cd stat-fem; python setup.py install; pip install pytest pytest-cov pytest-mpi"
-script:
-  - docker exec $container_name bash -c "$activate; cd ${test_dir}; make tests"
-after_success:
-  - docker exec $container_name bash -c "$activate; cd ${test_dir}; bash <(curl -s https://codecov.io/bash)"
-after_script:
-  - docker stop $container_name
+  - pwd
+  - ls
+
+
+
