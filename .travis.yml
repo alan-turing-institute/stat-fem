@@ -6,7 +6,6 @@ before_install:
   - cd /home/travis/build/alan-turing-institute/
   - curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
   - travis_wait 120 python firedrake-install --no-package-manager --disable-ssh
-  - cat firedrake-install.log
 install:
   - source /home/travis/build/alan-turing-institute/firedrake/bin/activate
   - cd /home/travis/build/alan-turing/institute/stat-fem/
@@ -18,3 +17,5 @@ script:
   - make tests
 after_success:
   - codecov
+after_failure:
+  - cat firedrake-install.log
