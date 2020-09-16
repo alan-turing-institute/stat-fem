@@ -19,3 +19,5 @@ script:
 #  - codecov
 after_failure:
   - cat firedrake-install.log
+  - ls /home/travis/build/alan-turing-institute/firedrake/include
+  
