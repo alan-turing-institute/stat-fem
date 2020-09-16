@@ -3,7 +3,7 @@ python:
   - "3.7"
 script:
   - deactivate
-  - python3 --version
+  - ls /opt/python
   - sudo apt-get -y install cmake gfortran libblas-dev liblapack-dev python3-pip python3-tk python3-venv libboost-dev
   - cd /home/travis/build/alan-turing-institute/
   - curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
