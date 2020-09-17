@@ -1,13 +1,10 @@
-language: python
-python:
-  - "3.7"
+language: minimal
+dist: bionic
 script:
-  - deactivate
-  - ls /opt/python
-  - sudo apt-get -y install cmake gfortran libblas-dev liblapack-dev python3-pip python3-tk python3-venv libboost-dev
+  - sudo apt-get -y install build-essential autoconf automake bison flex cmake gfortran git libblas-dev liblapack-dev libtool python3-dev python3-pip python3-tk python3-venv zlib1g-dev libboost-dev
   - cd /home/travis/build/alan-turing-institute/
   - curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
-#  - travis_wait 120 python firedrake-install --no-package-manager --disable-ssh
+  - travis_wait 120 python3 firedrake-install --no-package-manager --disable-ssh
 #install:
 #  - source /home/travis/build/alan-turing-institute/firedrake/bin/activate
 #  - cd /home/travis/build/alan-turing/institute/stat-fem/
@@ -21,4 +18,3 @@ script:
 #  - codecov
 after_failure:
   - cat firedrake-install.log
-  - python -m "import os; print(os.environ('PETSC_DIR'))"
