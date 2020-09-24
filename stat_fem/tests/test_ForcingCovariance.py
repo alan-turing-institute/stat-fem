@@ -12,6 +12,9 @@ import pytest
 from ..ForcingCovariance import ForcingCovariance
 from .helper_funcs import nx, my_ensemble, comm, mesh, fs, meshcoords, fc, cov
 
+import gc
+gc.disable()
+
 @pytest.mark.parametrize("comm", [COMM_WORLD])
 def test_ForcingCovariance_init(fs):
     "test init method of ForcingCovariance"
@@ -175,3 +178,5 @@ def test_ForcingCovariance_str(fc):
     "test the string method of ForcingCovariance"
 
     assert str(fc) == "Forcing Covariance with {} mesh points".format(nx + 1)
+
+gc.collect()
