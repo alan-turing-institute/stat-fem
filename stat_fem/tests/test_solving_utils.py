@@ -9,6 +9,9 @@ from ..InterpolationMatrix import InterpolationMatrix
 from .helper_funcs import nx, my_ensemble, comm, mesh, fs, A, b, fc, meshcoords, coords, interp
 from .helper_funcs import A_numpy, cov
 
+import gc
+gc.disable()
+
 @pytest.mark.parametrize("comm", [COMM_WORLD])
 def test_solve_forcing_covariance(comm, fs, A, b, fc, A_numpy, cov):
     "test solve_forcing_covariance"
@@ -111,3 +114,5 @@ def test_InterpolationMatrix_interp_covariance_to_data_ensemble(my_ensemble, fs,
         assert_allclose(result_expected, result_actual, atol=1.e-10)
     else:
         assert result_actual.shape == (0, 0)
+
+gc.collect()

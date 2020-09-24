@@ -9,6 +9,9 @@ from firedrake import dx, TrialFunction, TestFunction, interpolate
 from firedrake import dot, DirichletBC, grad, COMM_WORLD
 from .helper_funcs import nx, my_ensemble, comm, mesh, fs, fc, cov, meshcoords, coords, interp
 
+import gc
+gc.disable()
+
 @pytest.mark.parametrize("comm", [COMM_WORLD])
 def test_assemble_ForcingCovariance(fc, cov):
     "test assemble with a forcing covariance object"
@@ -60,3 +63,5 @@ def test_assemble_firedrake(fs):
     A = assemble(a, bcs = bc)
 
     assert isinstance(A, Matrix)
+
+gc.collect()

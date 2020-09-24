@@ -7,6 +7,9 @@ from ..solving import solve_prior_covariance
 from ..estimation import estimate_params_MAP
 from .helper_funcs import my_ensemble, comm, mesh, fs, A, b, fc, coords, od, params, Ks
 
+import gc
+gc.disable()
+
 @pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
 def test_estimate_params_MAP(A, b, fc, od):
     "test the function to use MLE to estimate parameters"
@@ -36,3 +39,5 @@ def test_estimate_params_MAP(A, b, fc, od):
     diff_arg = COMM_WORLD.allreduce(int(not same_result), op=MPI.SUM)
 
     assert not bool(diff_arg)
+
+gc.collect()
