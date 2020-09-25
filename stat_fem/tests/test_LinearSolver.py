@@ -10,6 +10,9 @@ from ..solving import predict_mean, predict_covariance
 from .helper_funcs import nx, params, my_ensemble, comm, mesh, fs, A, b, meshcoords, fc, od, interp, Ks
 from .helper_funcs import A_numpy, cov, K, coords, coords_predict, interp_predict, Ks_predict
 
+import gc
+gc.disable()
+
 @pytest.fixture
 def ls(A, b, fc, od):
     return LinearSolver(A, b, fc, od)
@@ -360,3 +363,5 @@ def test_LinearSolver_logpost_deriv(A, b, fc, od, params, Ks, ls):
                            ls.logposterior(params                         ))/dx
 
     assert_allclose(loglike_deriv_actual, loglike_deriv_fd, atol=1.e-5, rtol=1.e-5)
+
+gc.collect()

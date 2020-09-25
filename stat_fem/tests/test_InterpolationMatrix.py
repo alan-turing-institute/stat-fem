@@ -15,6 +15,9 @@ from ufl import dx, dot, grad
 from ..InterpolationMatrix import InterpolationMatrix, interpolate_cell
 from .helper_funcs import nx, comm, my_ensemble, mesh, fs, A, meshcoords, fc, coords, interp, cov, A_numpy
 
+import gc
+gc.disable()
+
 @pytest.mark.parametrize("comm, coords", [(COMM_WORLD, 1)], indirect=["coords"])
 def test_InterpolationMatrix(fs, coords):
     "test InterpolationMatrix with multiple processes"
@@ -286,3 +289,5 @@ def test_interpolate_cell():
 
     with pytest.raises(AssertionError):
         interpolate_cell(data_coord, nodal_points)
+
+gc.collect()
