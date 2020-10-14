@@ -1,11 +1,9 @@
-import sys
 import numpy as np
 from firedrake import Function
 from firedrake.petsc import PETSc
 from firedrake.functionspace import VectorFunctionSpace
 from firedrake.functionspaceimpl import WithGeometry
 from firedrake.interpolation import interpolate
-from firedrake.matrix import Matrix
 from firedrake.vector import Vector
 
 class InterpolationMatrix(object):
