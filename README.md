@@ -47,11 +47,11 @@ directory in the `stat-fem` repository.
 The code comes with a full suite of unit tests. Running the test suite uses pytest and pytest-mpi
 to collect and run the tests. To run the tests on a single process, simply enter `pytest` into
 the running virtual environment from any location in the stat-fem directory. To run the test
-suite in parallel, enter `mpirun -n 2 python -m pytest --with-mpi` or
-`mpirun -n 4 python -m pytest --with-mpi` depending on the number of cores available on your
-system. Any tests that will fail in parallel or will fail for a given number of processes will
-automatically be skipped. No tests have been written that require more than 4 processes, but
-you should be able to run the tests on more processors if desired.
+suite in parallel, enter `mpiexec -n 2 python -m pytest --with-mpi` or
+`mpiexec -n 4 python -m pytest --with-mpi` depending on the number of desired
+processes to be used. Tests have only been written for 2 and 4 processes, so
+you may get a failure if you attempt to use other choices for the number
+of processes.
 
 ## Parallelism
 
@@ -119,7 +119,7 @@ the number of processes in a particular script.
 
 ## Example Scripts
 
-A number of examples illustrating the various code capabilities and features are included in
+An example illustrating the various code capabilities and features is included in
 the `stat-fem/examples` directory.
 
 ## Contact
