@@ -10,10 +10,10 @@ WORKDIR /home/firedrake/firedrake/src
 RUN bash -c "source /home/firedrake/firedrake/bin/activate && \
              git clone https://github.com/alan-turing-institute/stat-fem.git && \
              cd stat-fem && \
-             git checkout basicfunc && \
+             git checkout devel && \
              pip install -r requirements.txt && \
              pip install -r requirements-dev.txt && \
-             python setup.py develop"
+             python setup.py install"
 
 RUN echo "source /home/firedrake/firedrake/bin/activate" >> /home/firedrake/.bashrc
 
