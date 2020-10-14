@@ -68,7 +68,7 @@ class InterpolationMatrix(object):
 
         for i in range(self.n_data):
             cell = self.function_space.mesh().locate_cell(self.coords[i])
-            if (not cell is None):
+            if not cell is None:
                 nodes = self.function_space.cell_node_list[cell]
                 points = meshvals_local[nodes]
                 interp_coords = interpolate_cell(self.coords[i], points)
