@@ -107,8 +107,8 @@ class InterpolationMatrix(object):
 
         data_array = np.array(data_array)
 
-        assert data_array.ndim == 1
-        assert data_array.shape[0] == self.dataspace_gathered.getSizes()[0], "data_array has bad shape"
+        assert data_array.ndim == 1, "input data must be a 1D array of sensor values"
+        assert data_array.shape[0] == self.dataspace_gathered.getSizes()[0], "data_array has an incorrect number of sensor measurements"
 
         # scatter into dataspace_distrib
 
@@ -130,7 +130,7 @@ class InterpolationMatrix(object):
         if not isinstance(input_mesh_vector, Vector):
             raise TypeError("input_mesh_vector must be a firedrake vector")
         assert (input_mesh_vector.local_size() == self.meshspace_vector.local_size() and
-                input_mesh_vector.size() == self.meshspace_vector.size()), "bad size for input vector"
+                input_mesh_vector.size() == self.meshspace_vector.size()), "input vector must be the same length as the FEM DOFs and be distributed across processes in the same way"
         self.meshspace_vector.set_local(input_mesh_vector.get_local())
 
         # interpolate to dataspace and gather, returning numpy array
@@ -171,7 +171,7 @@ def interpolate_cell(data_coord, nodal_points):
     if nodal_points.ndim == 1:
         nodal_points = np.reshape(nodal_points, (-1, 1))
     npts, ndim = nodal_points.shape
-    assert len(data_coord) == ndim
+    assert len(data_coord) == ndim, "data provided for interpolation has the wrong number of spatial dimensions"
 
     A = np.ones((ndim + 1, npts))
     A[0:-1,:] = np.transpose(nodal_points)
