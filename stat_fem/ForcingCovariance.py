@@ -108,6 +108,8 @@ class ForcingCovariance(object):
 
         self.is_assembled = False
 
+        self.G = None
+        
     def _integrate_basis_functions(self):
         """
         Integrate the basis functions for computing the forcing covariance
