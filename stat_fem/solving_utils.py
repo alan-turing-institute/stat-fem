@@ -1,11 +1,9 @@
 import numpy as np
-from firedrake import COMM_WORLD, COMM_SELF
-from firedrake.ensemble import Ensemble
+from firedrake import COMM_SELF
 from firedrake.function import Function
 from firedrake.petsc import PETSc
 from firedrake.matrix import Matrix
 from firedrake.vector import Vector
-import firedrake.solving
 from .ForcingCovariance import ForcingCovariance
 from .InterpolationMatrix import InterpolationMatrix
 
