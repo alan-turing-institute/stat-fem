@@ -159,7 +159,7 @@ class InterpolationMatrix(object):
     def __str__(self):
         "return string representation of interpolation matrix"
 
-        return "Interpolation matrix from %d mesh points to %d data points".format(self.n_mesh, self.n_data)
+        return "Interpolation matrix from {} mesh points to {} data points".format(self.n_mesh, self.n_data)
 
 def interpolate_cell(data_coord, nodal_points):
     """
