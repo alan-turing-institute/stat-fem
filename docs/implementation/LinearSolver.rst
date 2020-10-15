@@ -1,11 +1,11 @@
-.. _ObsData:
+.. _LinearSolver:
 
 **********************************
-The ``ObsData`` Class
+The ``LinearSolver`` Class
 **********************************
 
 
-.. autoclass:: stat_fem.ObsData.ObsData
+.. autoclass:: stat_fem.LinearSolver
     :members:
 
     .. automethod:: __init__

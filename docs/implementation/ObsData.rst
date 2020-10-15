@@ -1,11 +1,11 @@
-.. _ForcingCovariance:
+.. _ObsData:
 
 **********************************
-The ``ForcingCovariance`` Class
+The ``ObsData`` Class
 **********************************
 
 
-.. autoclass:: stat_fem.ForcingCovariance.ForcingCovariance
+.. autoclass:: stat_fem.ObsData
     :members:
 
     .. automethod:: __init__
