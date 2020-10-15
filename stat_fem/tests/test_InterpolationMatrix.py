@@ -250,7 +250,7 @@ def test_InterpolationMatrix_str():
 
     im = InterpolationMatrix(V, coords)
 
-    assert str(im) == "Interpolation matrix from %d mesh points to %d data points".format(nx + 1, nd)
+    assert str(im) == "Interpolation matrix from {} mesh points to {} data points".format(nx + 1, nd)
 
 def test_interpolate_cell():
     "test the interpolate function"
