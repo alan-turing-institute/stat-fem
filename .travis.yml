@@ -1,24 +1,19 @@
-language: python
-python:
-  - "3.7"
-services:
-  - docker
+language: minimal
+dist: bionic
 before_install:
-  - container_source="firedrakeproject/firedrake:latest"
-  - container_name="test"
-  - docker pull $container_source
-  - docker create --name=$container_name -it $container_source
-  - docker start $container_name
+  - sudo apt-get -y install build-essential autoconf automake bison flex cmake gfortran git libblas-dev liblapack-dev libtool python3-dev python3-pip python3-tk python3-venv zlib1g-dev libboost-dev
+  - cd /home/travis/build/alan-turing-institute/
+  - curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
+  - travis_wait 90 python3 firedrake-install --no-package-manager --disable-ssh
 install:
-  - activate="source /home/firedrake/firedrake/bin/activate"
-  - src_dir="/home/firedrake/firedrake/src/"
-  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-  - docker exec $container_name bash -c "$activate; cd $src_dir; git clone --branch=$BRANCH https://github.com/alan-turing-institute/stat-fem.git; cd stat-fem; python setup.py install; pip install pytest-cov"
+  - source /home/travis/build/alan-turing-institute/firedrake/bin/activate
+  - cd /home/travis/build/alan-turing-institute/stat-fem/
+  - pip install -r requirements.txt
+  - pip install -r requirements-dev.txt
+  - python setup.py install
 script:
-  - docker exec $container_name bash -c "$activate; cd ${src_dir}stat-fem; pytest --cov=stat_fem/"
+  - cd /home/travis/build/alan-turing-institute/stat-fem/stat_fem/tests
+  - make tests
 after_success:
-  - docker cp $container_name:${src_dir}stat-fem/.coverage .
-  - token="a709d4d8-f453-4903-975e-0d028ac9602d"
-  - bash <(curl -s https://codecov.io/bash) -t token
-after_script:
-  - docker stop $container_name
+  - codecov
+
