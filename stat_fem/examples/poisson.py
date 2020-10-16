@@ -4,7 +4,11 @@ from firedrake import SpatialCoordinate, dx, pi, sin, dot, grad, DirichletBC
 from firedrake import assemble, Function, solve
 import stat_fem
 from stat_fem.covariance_functions import sqexp
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+    makeplots = True
+except ImportError:
+    makeplots = False
 
 # Set up base FEM, which solves Poisson's equation on a square mesh
 
@@ -68,13 +72,15 @@ y = (np.exp(rho)*np.sin(2.*np.pi*x_data[:,0])*np.sin(2.*np.pi*x_data[:,1]) +
      np.random.normal(scale = sigma_y, size = ndata))
 
 # visualize the prior FEM solution and the synthetic data
-plt.figure()
-plt.tripcolor(mesh.coordinates.vector().dat.data[:,0], mesh.coordinates.vector().dat.data[:,1],
-              u.vector().dat.data)
-plt.colorbar()
-plt.scatter(x_data[:,0], x_data[:,1], c = y, cmap="Greys_r")
-plt.colorbar()
-plt.title("Prior FEM solution and data")
+
+if makeplots:
+    plt.figure()
+    plt.tripcolor(mesh.coordinates.vector().dat.data[:,0], mesh.coordinates.vector().dat.data[:,1],
+                  u.vector().dat.data)
+    plt.colorbar()
+    plt.scatter(x_data[:,0], x_data[:,1], c = y, cmap="Greys_r")
+    plt.colorbar()
+    plt.title("Prior FEM solution and data")
 
 # Begin stat-fem solution
 
@@ -114,11 +120,13 @@ ls.solve_posterior(muy)
 muy2, Cuy = ls.solve_posterior_covariance()
 
 # visualize posterior FEM solution and uncertainty
-plt.figure()
-plt.tripcolor(mesh.coordinates.vector().dat.data[:,0], mesh.coordinates.vector().dat.data[:,1],
-              muy.vector().dat.data)
-plt.colorbar()
-plt.scatter(x_data[:,0], x_data[:,1], c = np.diag(Cuy), cmap="Greys_r")
-plt.colorbar()
-plt.title("Posterior FEM solution and uncertainty")
-plt.show()
+
+if makeplots:
+    plt.figure()
+    plt.tripcolor(mesh.coordinates.vector().dat.data[:,0], mesh.coordinates.vector().dat.data[:,1],
+                  np.exp(ls.params[0])*muy.vector().dat.data)
+    plt.colorbar()
+    plt.scatter(x_data[:,0], x_data[:,1], c = np.diag(Cuy), cmap="Greys_r")
+    plt.colorbar()
+    plt.title("Posterior FEM solution and uncertainty")
+    plt.show()
