@@ -23,7 +23,7 @@ electrostatics, and the deformation of elastic bodies. It is commonly
 used as an example Elliptic Partial Differential Equation:
 
 .. math::
-   \grad^2 u = -f
+   \nabla^2 u = -f
 
 :math:`u` here is the function that we wish to determine, which might
 represent the temperature in a 2D material. The function :math:`f` is the
@@ -34,13 +34,13 @@ which set the values of the function at the boundaries (here assumed to be 0).
 We will assume that the function :math:`f` has the form
 
 .. math::
-   f(x,y) = 8 \pi^2 \sin\left(2\pi x\right) \sin\left(2\pi y\right)
+   f(x,y) = 8 \pi^2 \sin\left(2\pi x \right) \sin\left(2\pi y \right)
 
 This has been conveniently chosen such that the analytical solution to the
 PDE is
 
 .. math::
-   u(x,y) = \sin\left(2\pi x)\sin\left(2\pi y\right)
+   u(x,y) = \sin\left(2\pi x \right)\sin\left(2\pi y\right)
 
 which can be verified satisfies the BCs and the original governing Equation.
 
@@ -50,12 +50,12 @@ Solution with the Finite Element Method
 To solve this problem using FEM, we must first convert to the weak form,
 which we do by multiplying by a test function :math:`v` and integrate over
 the entire domain of interest :math:`\Omega`. We use the standard FEM procedure of
-integrating by parts to transform the Laplacian Operator :math:`\grad^2`
+integrating by parts to transform the Laplacian Operator :math:`\nabla^2`
 into a dot product of gradients, and remove the surface integral term
 due to the boundary conditions:
 
 .. math::
-   \int_\Omega \grad u \dot \grad\v \; dxdy = \int_\Omega fv \; dxdy
+   \int_\Omega \nabla u \cdot \nabla v \; dxdy = \int_\Omega fv \; dxdy
 
 We also need to specify a mesh subdividing the unit square into the
 subdomains over which we will approximate the function. Here we will
@@ -140,14 +140,14 @@ reproduced below to show the expected output of the calculations if
 all works as expected.
 
 .. figure:: prior.png
-   :align: center
+   :align: left
 
    Prior FEM solution (color) and synthetic data points (greyscale circles)
    to the Poisson's Equation problem. Note the mismatch between the
    color scales for the prior solution and the data.
 
 .. figure:: posterior.png
-   :align: center
+   :align: left
 
    Posterior FEM solution (color) and variance at data observation
    points (greyscale circles) to the Poisson's Equation problem. Note
