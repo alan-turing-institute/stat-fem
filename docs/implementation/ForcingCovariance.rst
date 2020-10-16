@@ -1,11 +1,11 @@
-.. _LinearSolver:
+.. _ForcingCovariance:
 
 **********************************
-The ``LinearSolver`` Class
+The ``ForcingCovariance`` Class
 **********************************
 
 
-.. autoclass:: stat_fem.LinearSolver.LinearSolver
+.. autoclass:: stat_fem.ForcingCovariance
     :members:
 
     .. automethod:: __init__
