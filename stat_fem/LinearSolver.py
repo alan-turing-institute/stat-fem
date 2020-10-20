@@ -272,7 +272,7 @@ class LinearSolver(object):
 
             tmp_meshspace_1 = solve_forcing_covariance(self.G, self.A, tmp_meshspace_1)._scale(rho**2)
 
-            x.assign((tmp_meshspace_2 - tmp_meshspace_1).scale(scalefact).function)
+            x.assign((tmp_meshspace_2 - tmp_meshspace_1)._scale(scalefact).function)
 
 
     def solve_posterior_covariance(self, scale_mean=False):
@@ -639,9 +639,9 @@ class LinearSolver(object):
 
             deriv = np.zeros(3)
 
-            deriv[0] = (-np.dot(self.mu, invKCudata) -
-                        rho*np.linalg.multi_dot([invKCudata, self.Cu, invKCudata]) +
-                        rho*np.trace(cho_solve(L, self.Cu)))
+            deriv[0] = (-rho*np.dot(self.mu, invKCudata) -
+                        rho**2*np.linalg.multi_dot([invKCudata, self.Cu, invKCudata]) +
+                        rho**2*np.trace(cho_solve(L, self.Cu)))
             for i in range(0, 2):
                 deriv[i + 1] = -0.5*(np.linalg.multi_dot([invKCudata, K_deriv[i], invKCudata]) -
                                     np.trace(cho_solve(L, K_deriv[i])))
