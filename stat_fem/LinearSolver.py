@@ -191,7 +191,7 @@ class LinearSolver(object):
 
         return self.mu, self.Cu
 
-    def solve_posterior(self, x):
+    def solve_posterior(self, x, scale_mean=False):
         r"""
         Solve FEM posterior in mesh space
 
@@ -202,12 +202,22 @@ class LinearSolver(object):
         the solution is only stored in the root of the ensemble communicator. The Firedrake
         ``Function`` on the other processes will not be modified.
 
+        The optional ``scale_mean`` argument determines if the solution is to be re-scaled
+        by the model discrepancy scaling factor. This value is by default ``False``.
+        To re-scale to match the data, pass ``scale_mean=True``.
+
         :param x: Firedrake ``Function`` for holding the solution. This is modified in place
                   by the method.
         :type x: Firedrake Function
+        :param scale_mean: Boolean indicating if the mean should be scaled by the model
+                           discrepancy scaling factor. Optional, default is ``False``
+        :type scale_mean: bool
         :returns: None
         """
 
+        if not isinstance(bool(scale_mean), bool):
+            raise TypeError("scale_mean argument must be boolean-like")
+        
         # create interpolation matrix if not cached
 
         if self.Cu is None:
@@ -218,6 +228,11 @@ class LinearSolver(object):
 
         rho = np.exp(self.params[0])
 
+        if scale_mean:
+            scalefact = rho
+        else:
+            scalefact = 1.
+        
         # remaining solves are just done on ensemble root
 
         if self.ensemble_comm.rank == 0:
@@ -257,10 +272,10 @@ class LinearSolver(object):
 
             tmp_meshspace_1 = solve_forcing_covariance(self.G, self.A, tmp_meshspace_1)._scale(rho**2)
 
-            x.assign((tmp_meshspace_2 - tmp_meshspace_1).function)
+            x.assign((tmp_meshspace_2 - tmp_meshspace_1).scale(scalefact).function)
 
 
-    def solve_posterior_covariance(self):
+    def solve_posterior_covariance(self, scale_mean=False):
         r"""
         Solve posterior FEM and covariance interpolated to the data locations
 
@@ -272,12 +287,22 @@ class LinearSolver(object):
         This is because each process has a different array size, so would require correctly
         pre-allocating arrays of different lengths on each process.
 
+        The optional ``scale_mean`` argument determines if the solution is to be re-scaled
+        by the model discrepancy scaling factor. This value is by default ``False``.
+        To re-scale to match the data, pass ``scale_mean=True``.
+
         :returns: FEM posterior mean and covariance (as a tuple of numpy arrays) on the root process.
                   Non-root processes return numpy arrays of shape ``(0,)`` (mean) and ``(0, 0)``
                   (covariance).
+        :param scale_mean: Boolean indicating if the mean should be scaled by the model
+                           discrepancy scaling factor. Optional, default is ``False``
+        :type scale_mean: bool
         :rtype: tuple of ndarrays
         """
 
+        if not isinstance(bool(scale_mean), bool):
+            raise TypeError("scale_mean argument must be boolean-like")
+        
         # create interpolation matrix if not cached
 
         if self.mu is None or self.Cu is None:
@@ -288,6 +313,11 @@ class LinearSolver(object):
 
         rho = np.exp(self.params[0])
 
+        if scale_mean:
+            scalefact = rho
+        else:
+            scalefact = 1.
+        
         if self.ensemble_comm.rank == 0 and self.G.comm.rank == 0:
             try:
                 Ks = self.data.calc_K_plus_sigma(self.params[1:])
@@ -310,7 +340,7 @@ class LinearSolver(object):
             muy = np.zeros(0)
             Cuy = np.zeros((0,0))
 
-        return muy, Cuy
+        return scalefact*muy, Cuy
 
     def solve_prior_generating(self):
         r"""
@@ -378,7 +408,7 @@ class LinearSolver(object):
 
         return m_etay, C_etay
 
-    def predict_mean(self, coords):
+    def predict_mean(self, coords, scale_mean=True):
         r"""
         Compute the predictive mean
 
@@ -387,14 +417,24 @@ class LinearSolver(object):
         small overhead above the computational work of finding the posterior mean (i.e. you get
         the mean value at new sensor locations for "free" once you have solved the posterior).
 
+        The optional ``scale_mean`` argument determines if the solution is to be re-scaled
+        by the model discrepancy scaling factor. This value is by default ``True``.
+        To re-scale to match the FEM solution, pass ``scale_mean=False``.
+
         :param coords: Spatial coordinates at which the mean will be predicted. Must be a
                        2D Numpy array (or a 1D array, which will assume the second axis has length
                        1)
         :type coords: ndarray
+        :param scale_mean: Boolean indicating if the mean should be scaled by the model
+                           discrepancy scaling factor. Optional, default is ``True``
+        :type scale_mean: bool
         :returns: FEM prediction at specified sensor locations as a numpy array on the root process.
                   All other processes will have a numpy array of length 0.
         :rtype: ndarray
         """
+        
+        if not isinstance(bool(scale_mean), bool):
+            raise TypeError("scale_mean argument must be boolean-like")
 
         coords = np.array(coords, dtype=np.float64)
         if coords.ndim == 1:
@@ -410,13 +450,18 @@ class LinearSolver(object):
 
         rho = np.exp(self.params[0])
 
+        if scale_mean:
+            scalefact = rho
+        else:
+            scalefact = 1.
+        
         x = Function(self.G.function_space)
 
         self.solve_posterior(x)
 
         im = InterpolationMatrix(self.G.function_space, coords)
 
-        mu = rho*im.interp_mesh_to_data(x.vector())
+        mu = scalefact*im.interp_mesh_to_data(x.vector())
 
         im.destroy()
 
