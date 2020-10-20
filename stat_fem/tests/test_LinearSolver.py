@@ -327,15 +327,17 @@ def test_predict_covariance(fs, A, b, meshcoords, fc, od, interp, Ks, params, co
 def test_LinearSolver_logposterior(A, b, fc, od, params, Ks, ls):
     "test the loglikelihood method"
 
+    rho = np.exp(params[0])
+    
     mu, Cu = ls.solve_prior()
 
     loglike_actual = ls.logposterior(params)
 
     if COMM_WORLD.rank == 0:
-        KCu = Cu + Ks
-        loglike_expected = 0.5*(np.linalg.multi_dot([od.get_data() - mu,
+        KCu = rho**2*Cu + Ks
+        loglike_expected = 0.5*(np.linalg.multi_dot([od.get_data() - rho*mu,
                                                      np.linalg.inv(KCu),
-                                                     od.get_data() - mu]) +
+                                                     od.get_data() - rho*mu]) +
                                 np.log(np.linalg.det(KCu)) +
                                 od.get_n_obs()*np.log(2.*np.pi))
     else:
@@ -362,6 +364,6 @@ def test_LinearSolver_logpost_deriv(A, b, fc, od, params, Ks, ls):
     loglike_deriv_fd[2] = (ls.logposterior(params + np.array([0., 0., dx])) -
                            ls.logposterior(params                         ))/dx
 
-    assert_allclose(loglike_deriv_actual, loglike_deriv_fd, atol=1.e-5, rtol=1.e-5)
+    assert_allclose(loglike_deriv_actual, loglike_deriv_fd, atol=1.e-6, rtol=1.e-6)
 
 gc.collect()
