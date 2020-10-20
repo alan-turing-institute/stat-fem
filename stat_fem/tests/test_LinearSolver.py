@@ -34,6 +34,10 @@ def test_LinearSolver_solve_posterior(fs, A, b, meshcoords, fc, od, interp, Ks, 
     ls.solve_posterior(u)
     u_f = u.vector().gather()
 
+    u_scaled = Function(fs)
+    ls.solve_posterior(u_scaled, scale_mean=True)
+    u_f_scaled = u_scaled.vector().gather()
+
     mu, Cu = ls.solve_prior()
 
     u2 = Function(fs)
@@ -54,6 +58,7 @@ def test_LinearSolver_solve_posterior(fs, A, b, meshcoords, fc, od, interp, Ks, 
         u_expected = tmp_1 - tmp_2
         assert_allclose(u_expected, u_f, atol=1.e-10)
         assert_allclose(u_expected, u_f2, atol=1.e-10)
+        assert_allclose(u_expected*rho, u_f_scaled, atol=1.e-10)
 
     fc.destroy()
 
@@ -70,6 +75,10 @@ def test_solve_posterior_parallel(my_ensemble, fs, A, b, meshcoords, fc, od, int
     ls_parallel.solve_posterior(u)
     u_f = u.vector().gather()
 
+    u_scaled = Function(fs)
+    ls.solve_posterior(u_scaled, scale_mean=True)
+    u_f_scaled = u_scaled.vector().gather()
+    
     rho = np.exp(params[0])
 
     mu, Cu = ls_parallel.solve_prior()
@@ -87,6 +96,7 @@ def test_solve_posterior_parallel(my_ensemble, fs, A, b, meshcoords, fc, od, int
         tmp_2 = np.linalg.multi_dot([Cu_full, interp, KCinv, interp.T, tmp_1])
         u_expected = tmp_1 - rho**2*tmp_2
         assert_allclose(u_expected, u_f, atol=1.e-10)
+        assert_allclose(u_expected*rho, u_f_scaled, atol=1.e-10)
     elif my_ensemble.ensemble_comm.rank != 0:
         assert_allclose(u_f, np.zeros(u_f.shape))
 
@@ -98,7 +108,8 @@ def test_solve_posterior_covariance(A, b, fc, od, params, Ks, ls):
 
     ls.set_params(params)
     muy, Cuy = ls.solve_posterior_covariance()
-
+    muy_scaled, _ = ls.solve_posterior_covariance(scale_mean=True)
+    
     muy2, Cuy2 = solve_posterior_covariance(A, b, fc, od, params)
 
     rho = np.exp(params[0])
@@ -115,6 +126,7 @@ def test_solve_posterior_covariance(A, b, fc, od, params, Ks, ls):
         assert_allclose(Cuy, Cuy_expected, atol=1.e-10)
         assert_allclose(muy2, muy_expected, atol=1.e-10)
         assert_allclose(Cuy2, Cuy_expected, atol=1.e-10)
+        assert_allclose(muy_scaled, muy_expected*rho, atol=1.e-10)
     else:
         assert muy.shape == (0,)
         assert Cuy.shape == (0, 0)
@@ -131,7 +143,8 @@ def test_LinearSolver_solve_posterior_covariance_parallel(my_ensemble, A, b, fc,
 
     ls_parallel.set_params(params)
     muy, Cuy = ls_parallel.solve_posterior_covariance()
-
+    muy_scaled, _ = ls_parallel.solve_posterior_covariance(scale_mean=True)
+    
     rho = np.exp(params[0])
 
     mu, Cu = ls_parallel.solve_prior()
@@ -143,6 +156,7 @@ def test_LinearSolver_solve_posterior_covariance_parallel(my_ensemble, A, b, fc,
                                             np.linalg.solve(Cu, mu))
         assert_allclose(muy, muy_expected, atol=1.e-10)
         assert_allclose(Cuy, Cuy_expected, atol=1.e-10)
+        assert_allclose(muy_scaled, muy_expected*rho, atol=1.e-10)
     else:
         assert muy.shape == (0,)
         assert Cuy.shape == (0, 0)
@@ -273,7 +287,8 @@ def test_predict_mean(fs, A, b, fc, od, interp, params, coords_predict, interp_p
 
     ls.set_params(params)
     mu_actual = ls.predict_mean(coords_predict)
-
+    mu_actual_unscaled = ls.predict_mean(coords_predict, scale_mean=False)
+    
     mu_actual2 = predict_mean(A, b, fc, od, params, coords_predict)
 
     rho = np.exp(params[0])
@@ -286,6 +301,7 @@ def test_predict_mean(fs, A, b, fc, od, interp, params, coords_predict, interp_p
         mu_expect = rho*np.dot(interp_predict.T, u_f)
         assert_allclose(mu_actual, mu_expect)
         assert_allclose(mu_actual2, mu_expect)
+        assert_allclose(mu_actual_unscaled, mu_expect/rho)
     else:
         assert mu_actual.shape == (0,)
         assert mu_actual2.shape == (0,)
