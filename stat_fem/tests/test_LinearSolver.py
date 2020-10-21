@@ -76,7 +76,7 @@ def test_solve_posterior_parallel(my_ensemble, fs, A, b, meshcoords, fc, od, int
     u_f = u.vector().gather()
 
     u_scaled = Function(fs)
-    ls.solve_posterior(u_scaled, scale_mean=True)
+    ls_parallel.solve_posterior(u_scaled, scale_mean=True)
     u_f_scaled = u_scaled.vector().gather()
     
     rho = np.exp(params[0])
