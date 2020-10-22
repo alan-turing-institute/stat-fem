@@ -45,13 +45,31 @@ def estimate_params_MAP(A, b, G, data, priors=[None, None, None], start=None, en
                           are parallelized. Optional, default value is ``COMM_SELF`` indicating
                           that forcing covariance solves are not parallelized.
     :type enemble_comm: MPI Communicator
-    :param kwargs: Additional keyword arguments to be passed to the minimization routine.
+    :param kwargs: Additional keyword arguments to be passed to either the Firedrake
+                   `LinearSolver` object or the Scipy `minimize` routine. See
+                   the corresponding manuals for more information.
     :returns: A LinearSolver object with the hyperparameters set to the MAP/MLE value. To extract
               the actual parameters, use the ``params`` attribute.
     :rtype: LinearSolver
     """
 
-    ls = LinearSolver(A, b, G, data, priors, ensemble_comm)
+    # extract kwargs for firedrake solver and minimize
+    
+    firedrake_kwargs = ["P", "solver_parameters", "nullspace",
+                        "transpose_nullspace", "near_nullspace",
+                        "options_prefix"]
+
+    ls_kwargs = {}
+    minimize_kwargs = {}
+    
+    for kw in kwargs.keys():
+        if kw in firedrake_kwargs:
+            ls_kwargs[kw] = kwargs[kw]
+        else:
+            minimize_kwargs[kw] = kwargs[kw]
+    
+    ls = LinearSolver(A, b, G, data, priors=priors, ensemble_comm=ensemble_comm,
+                      **ls_kwargs)
 
     ls.solve_prior()
 
@@ -64,7 +82,8 @@ def estimate_params_MAP(A, b, G, data, priors=[None, None, None], start=None, en
     else:
         assert np.array(start).shape == (3,), "bad shape for starting point"
 
-    fmin_dict = minimize(ls.logposterior, start, method='L-BFGS-B', jac=ls.logpost_deriv, options=kwargs)
+    fmin_dict = minimize(ls.logposterior, start, method='L-BFGS-B',
+                         jac=ls.logpost_deriv, options=minimize_kwargs)
 
     assert fmin_dict['success'], "minimization routine failed"
 
