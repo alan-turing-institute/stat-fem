@@ -3,7 +3,7 @@ from scipy.linalg import cho_factor, cho_solve
 from scipy.linalg import LinAlgError
 from firedrake import COMM_WORLD, COMM_SELF
 from firedrake.function import Function
-from firedrake.matrix import Matrix
+from firedrake.matrix import MatrixBase
 from firedrake.vector import Vector
 from firedrake.linear_solver import LinearSolver as fdLS
 from .ForcingCovariance import ForcingCovariance
@@ -92,7 +92,7 @@ class LinearSolver(object):
         :rtype: LinearSolver
         """
 
-        if not isinstance(A, Matrix):
+        if not isinstance(A, MatrixBase):
            raise TypeError("A must be a firedrake matrix")
         if not isinstance(b, (Function, Vector)):
             raise TypeError("b must be a firedrake function or vector")
