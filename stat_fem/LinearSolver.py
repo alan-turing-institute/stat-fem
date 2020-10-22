@@ -5,7 +5,7 @@ from firedrake import COMM_WORLD, COMM_SELF
 from firedrake.function import Function
 from firedrake.matrix import Matrix
 from firedrake.vector import Vector
-from firedrake.solving import solve
+from firedrake.linear_solver import LinearSolver as fdLS
 from .ForcingCovariance import ForcingCovariance
 from .InterpolationMatrix import InterpolationMatrix
 from .ObsData import ObsData
@@ -27,8 +27,8 @@ class LinearSolver(object):
     or marginal likelihood if no priors are specified and its associated derivatives), and
     prediction of sensor values and uncertainties at unmeasured locations.
 
-    :ivar A: the FEM stiffness matrix
-    :type A: Firedrake Matrix
+    :ivar solver: the base Firedrake FEM solver
+    :type solver: Firedrake LinearSolver
     :ivar b: the FEM RHS vector
     :type b: Firedrake Vector or Function
     :ivar G: Forcing Covariance sparse matrix
@@ -107,7 +107,7 @@ class LinearSolver(object):
         if not isinstance(ensemble_comm, type(COMM_WORLD)):
             raise TypeError("ensemble_comm must be an MPI communicator created with a firedrake Ensemble")
 
-        self.A = A
+        self.solver = fdLS(A)
         self.b = b
         self.G = G
         self.data = data
@@ -177,14 +177,14 @@ class LinearSolver(object):
 
         # form interpolated prior covariance across all ensemble processes
 
-        self.Cu = interp_covariance_to_data(self.im, self.G, self.A, self.im, self.ensemble_comm)
+        self.Cu = interp_covariance_to_data(self.im, self.G, self.solver, self.im, self.ensemble_comm)
 
         # solve base FEM (prior mean) and interpolate to data space on root
 
         self.x = Function(self.G.function_space)
 
         if self.ensemble_comm.rank == 0:
-            solve(self.A, self.x, self.b)
+            self.solver.solve(self.x, self.b)
             self.mu = self.im.interp_mesh_to_data(self.x.vector())
         else:
             self.mu = np.zeros(0)
@@ -220,7 +220,7 @@ class LinearSolver(object):
         
         # create interpolation matrix if not cached
 
-        if self.Cu is None:
+        if self.Cu is None or self.x is None:
             self.solve_prior()
 
         if self.params is None:
@@ -254,7 +254,7 @@ class LinearSolver(object):
 
             # solve forcing covariance and interpolate to dataspace
 
-            tmp_meshspace_2 = solve_forcing_covariance(self.G, self.A, tmp_meshspace_1)._scale(rho) + self.x.vector()
+            tmp_meshspace_2 = solve_forcing_covariance(self.G, self.solver, tmp_meshspace_1)._scale(rho) + self.x.vector()
 
             tmp_dataspace_1 = self.im.interp_mesh_to_data(tmp_meshspace_2)
 
@@ -270,7 +270,7 @@ class LinearSolver(object):
 
             tmp_meshspace_1 = self.im.interp_data_to_mesh(tmp_dataspace_2)
 
-            tmp_meshspace_1 = solve_forcing_covariance(self.G, self.A, tmp_meshspace_1)._scale(rho**2)
+            tmp_meshspace_1 = solve_forcing_covariance(self.G, self.solver, tmp_meshspace_1)._scale(rho**2)
 
             x.assign((tmp_meshspace_2 - tmp_meshspace_1)._scale(scalefact).function)
 
@@ -511,10 +511,10 @@ class LinearSolver(object):
         im_coords = InterpolationMatrix(self.G.function_space, coords)
 
         if coords.shape[0] > self.data.get_n_obs():
-            Cucd = interp_covariance_to_data(im_coords, self.G, self.A, self.im, self.ensemble_comm)
+            Cucd = interp_covariance_to_data(im_coords, self.G, self.solver, self.im, self.ensemble_comm)
         else:
-            Cucd = interp_covariance_to_data(self.im, self.G, self.A, im_coords, self.ensemble_comm).T
-        Cucc = interp_covariance_to_data(im_coords, self.G, self.A, im_coords, self.ensemble_comm)
+            Cucd = interp_covariance_to_data(self.im, self.G, self.solver, im_coords, self.ensemble_comm).T
+        Cucc = interp_covariance_to_data(im_coords, self.G, self.solver, im_coords, self.ensemble_comm)
 
         if self.ensemble_comm.rank == 0 and self.G.comm.rank == 0:
             try:

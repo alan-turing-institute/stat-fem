@@ -2,53 +2,45 @@ import numpy as np
 from firedrake import COMM_SELF
 from firedrake.function import Function
 from firedrake.petsc import PETSc
-from firedrake.matrix import Matrix
+from firedrake.linear_solver import LinearSolver
 from firedrake.vector import Vector
 from .ForcingCovariance import ForcingCovariance
 from .InterpolationMatrix import InterpolationMatrix
 
-def solve_forcing_covariance(G, A, rhs):
+def solve_forcing_covariance(G, ls, rhs):
     "solve the forcing covariance part of the stat FEM"
 
     if not isinstance(G, ForcingCovariance):
         raise TypeError("G must be a ForcingCovariance object")
-    if not isinstance(A, Matrix):
-        raise TypeError("A must be an assembled firedrake matrix")
+    if not isinstance(ls, LinearSolver):
+        raise TypeError("ls must be a firedrake LinearSolver")
     if not isinstance(rhs, Vector):
         raise TypeError("rhs must be a firedrake vector")
 
-    # create Krylov solver and attach stiffness matrix
-    # to do: allow user to customize by passing arguments
-    # and preconditioner to ksp class
+    # turn off BC application temporarily
 
-    ksp = PETSc.KSP().create(comm=G.comm)
-    ksp.setOperators(A.petscmat)
-    ksp.setFromOptions()
-
-    # call the necessary solves and multiplications
-    # alternately overwrite rhs_working and x
-
+    bcs = ls.A.bcs
+    ls.A.bcs = None
+    
     rhs_working = rhs.copy()
     x = Function(G.function_space).vector()
-    with rhs_working.dat.vec_ro as rhs_temp:
-        with x.dat.vec as x_temp:
-            ksp.solve(rhs_temp, x_temp)
+    ls.solve(x, rhs_working)
     G.mult(x, rhs_working)
-    with rhs_working.dat.vec_ro as rhs_temp:
-        with x.dat.vec as x_temp:
-            ksp.solve(rhs_temp, x_temp)
+    ls.solve(x, rhs_working)
 
-    # final solution is in x, return that
+    # turn BCs back on
 
+    ls.A.bcs = bcs
+    
     return x.copy()
 
-def interp_covariance_to_data(im_left, G, A, im_right, ensemble_comm=COMM_SELF):
+def interp_covariance_to_data(im_left, G, ls, im_right, ensemble_comm=COMM_SELF):
     "solve for the interpolated covariance matrix"
 
     if not isinstance(im_left, InterpolationMatrix):
         raise TypeError("first argument to interp_covariance_to_data must be an InterpolationMatrix")
-    if not isinstance(A, Matrix):
-        raise TypeError("A must be an assembled firedrake matrix")
+    if not isinstance(ls, LinearSolver):
+        raise TypeError("ls must be a firedrake LinearSolver")
     if not isinstance(G, ForcingCovariance):
         raise TypeError("G must be a ForcingCovariance class")
     if not isinstance(im_right, InterpolationMatrix):
@@ -82,7 +74,7 @@ def interp_covariance_to_data(im_left, G, A, im_right, ensemble_comm=COMM_SELF):
 
     for i in range(imin, imax):
         rhs = im_right.get_meshspace_column_vector(i)
-        tmp = solve_forcing_covariance(G, A, rhs)
+        tmp = solve_forcing_covariance(G, ls, rhs)
         result_tmparray[i - imin] = im_left.interp_mesh_to_data(tmp)
 
     # create distributed vector for gathering results at root
