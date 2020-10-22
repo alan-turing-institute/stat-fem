@@ -113,10 +113,14 @@ print(np.array([rho, sigma_eta, l_eta]))
 muy = Function(V)
 
 # solve_posterior computes the full solution on the FEM grid using a Firedrake function
-ls.solve_posterior(muy)
+# the scale_mean option will ensure that the output is scaled to match
+# the data rather than the FEM soltuion
+
+ls.solve_posterior(muy, scale_mean=True)
 
 # covariance can only be computed for a select number of locations as covariance is a dense matrix
 # function returns the mean/covariance as numpy arrays, not Firedrake functions
+
 muy2, Cuy = ls.solve_posterior_covariance()
 
 # visualize posterior FEM solution and uncertainty
@@ -124,7 +128,7 @@ muy2, Cuy = ls.solve_posterior_covariance()
 if makeplots:
     plt.figure()
     plt.tripcolor(mesh.coordinates.vector().dat.data[:,0], mesh.coordinates.vector().dat.data[:,1],
-                  np.exp(ls.params[0])*muy.vector().dat.data)
+                  muy.vector().dat.data)
     plt.colorbar()
     plt.scatter(x_data[:,0], x_data[:,1], c = np.diag(Cuy), cmap="Greys_r")
     plt.colorbar()

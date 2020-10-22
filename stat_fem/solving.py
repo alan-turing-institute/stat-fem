@@ -6,7 +6,7 @@ For repeated use, please use the LinearSolver class
 from firedrake import COMM_SELF
 from .LinearSolver import LinearSolver
 
-def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
+def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF, scale_mean=False):
     """
     Solve for the FEM posterior conditioned on the data. solution is stored in the
     provided firedrake function x
@@ -18,9 +18,9 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF):
 
     ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm)
     ls.set_params(params)
-    ls.solve_posterior(x)
+    ls.solve_posterior(x, scale_mean)
 
-def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
+def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF, scale_mean=False):
     """
     solve for conditioned fem plus covariance in the data space
 
@@ -35,7 +35,7 @@ def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF):
 
     ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm)
     ls.set_params(params)
-    return ls.solve_posterior_covariance()
+    return ls.solve_posterior_covariance(scale_mean)
 
 def solve_prior_covariance(A, b, G, data, ensemble_comm=COMM_SELF):
     """
@@ -68,7 +68,7 @@ def solve_posterior_generating(A, b, G, data, params, ensemble_comm=COMM_SELF):
     ls.set_params(params)
     return ls.solve_posterior_generating()
 
-def predict_mean(A, b, G, data, params, coords, ensemble_comm=COMM_SELF):
+def predict_mean(A, b, G, data, params, coords, ensemble_comm=COMM_SELF, scale_mean=True):
     """
     predict mean data values at unmeasured locations
 
@@ -80,7 +80,7 @@ def predict_mean(A, b, G, data, params, coords, ensemble_comm=COMM_SELF):
 
     ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm)
     ls.set_params(params)
-    return ls.predict_mean(coords)
+    return ls.predict_mean(coords, scale_mean)
 
 
 def predict_covariance(A, b, G, data, params, coords, unc, ensemble_comm=COMM_SELF):

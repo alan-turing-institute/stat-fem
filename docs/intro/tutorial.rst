@@ -133,7 +133,7 @@ From there, we can compute the mean posterior solution and determine
 its covariance:
 
 .. literalinclude:: ../../stat_fem/examples/poisson.py
-   :lines: 108-120
+   :lines: 108-124
 
 The script also makes some plots if Matplotlib is installed. These are
 reproduced below to show the expected output of the calculations if

@@ -195,7 +195,7 @@ def interp_predict(meshcoords, coords_predict):
 
 @pytest.fixture
 def params():
-    return np.zeros(3)
+    return np.array([-0.9, 0.1, -0.5])
 
 @pytest.fixture
 def Ks(od, params):
