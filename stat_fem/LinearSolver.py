@@ -60,7 +60,10 @@ class LinearSolver(object):
     :type current_logpost: float
     """
 
-    def __init__(self, A, b, G, data, priors=[None, None, None], ensemble_comm=COMM_SELF):
+    def __init__(self, A, b, G, data, *, priors=[None, None, None], ensemble_comm=COMM_SELF,
+                 P=None, solver_parameters=None, nullspace=None,
+                 transpose_nullspace=None, near_nullspace=None,
+                 options_prefix=None):
         r"""
         Create a new object encapsulating all solves on the same FEM model
 
@@ -107,7 +110,11 @@ class LinearSolver(object):
         if not isinstance(ensemble_comm, type(COMM_WORLD)):
             raise TypeError("ensemble_comm must be an MPI communicator created with a firedrake Ensemble")
 
-        self.solver = fdLS(A)
+        self.solver = fdLS(A, P=P, solver_parameters=solver_parameters,
+                           nullspace=nullspace,
+                           transpose_nullspace=transpose_nullspace,
+                           near_nullspace=near_nullspace,
+                           options_prefix=options_prefix)
         self.b = b
         self.G = G
         self.data = data

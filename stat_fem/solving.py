@@ -6,7 +6,7 @@ For repeated use, please use the LinearSolver class
 from firedrake import COMM_SELF
 from .LinearSolver import LinearSolver
 
-def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF, scale_mean=False):
+def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF, scale_mean=False, **kwargs):
     """
     Solve for the FEM posterior conditioned on the data. solution is stored in the
     provided firedrake function x
@@ -16,11 +16,11 @@ def solve_posterior(A, x, b, G, data, params, ensemble_comm=COMM_SELF, scale_mea
     processes will not be modified.
     """
 
-    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm)
+    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm, **kwargs)
     ls.set_params(params)
     ls.solve_posterior(x, scale_mean)
 
-def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF, scale_mean=False):
+def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF, scale_mean=False, **kwargs):
     """
     solve for conditioned fem plus covariance in the data space
 
@@ -33,11 +33,11 @@ def solve_posterior_covariance(A, b, G, data, params, ensemble_comm=COMM_SELF, s
     as the solution is collected at the root of both the spatial comm and the ensemble comm)
     """
 
-    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm)
+    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm, **kwargs)
     ls.set_params(params)
     return ls.solve_posterior_covariance(scale_mean)
 
-def solve_prior_covariance(A, b, G, data, ensemble_comm=COMM_SELF):
+def solve_prior_covariance(A, b, G, data, ensemble_comm=COMM_SELF, **kwargs):
     """
     solve base (prior) fem plus covariance interpolated to the data locations
 
@@ -52,23 +52,23 @@ def solve_prior_covariance(A, b, G, data, ensemble_comm=COMM_SELF):
     Note that since the data locations are needed, this still requires an ObsData object.
     """
 
-    return LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm).solve_prior()
+    return LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm, **kwargs).solve_prior()
 
-def solve_prior_generating(A, b, G, data, params, ensemble_comm=COMM_SELF):
+def solve_prior_generating(A, b, G, data, params, ensemble_comm=COMM_SELF, **kwargs):
     "solve for the prior of the generating process"
 
-    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm)
+    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm, **kwargs)
     ls.set_params(params)
     return ls.solve_prior_generating()
 
-def solve_posterior_generating(A, b, G, data, params, ensemble_comm=COMM_SELF):
+def solve_posterior_generating(A, b, G, data, params, ensemble_comm=COMM_SELF, **kwargs):
     "solve for the posterior of the generating process"
 
-    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm)
+    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm, **kwargs)
     ls.set_params(params)
     return ls.solve_posterior_generating()
 
-def predict_mean(A, b, G, data, params, coords, ensemble_comm=COMM_SELF, scale_mean=True):
+def predict_mean(A, b, G, data, params, coords, ensemble_comm=COMM_SELF, scale_mean=True, **kwargs):
     """
     predict mean data values at unmeasured locations
 
@@ -78,12 +78,12 @@ def predict_mean(A, b, G, data, params, coords, ensemble_comm=COMM_SELF, scale_m
     posterior)
     """
 
-    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm)
+    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm, **kwargs)
     ls.set_params(params)
     return ls.predict_mean(coords, scale_mean)
 
 
-def predict_covariance(A, b, G, data, params, coords, unc, ensemble_comm=COMM_SELF):
+def predict_covariance(A, b, G, data, params, coords, unc, ensemble_comm=COMM_SELF, **kwargs):
     """
     predict the mean and covariance of data values at unmeasured locations
 
@@ -91,6 +91,6 @@ def predict_covariance(A, b, G, data, params, coords, unc, ensemble_comm=COMM_SE
     doing an additional 2*n_pred FEM solves to get the full covariance at the new locations.
     """
 
-    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm)
+    ls = LinearSolver(A, b, G, data, ensemble_comm=ensemble_comm, **kwargs)
     ls.set_params(params)
     return ls.predict_covariance(coords, unc)
