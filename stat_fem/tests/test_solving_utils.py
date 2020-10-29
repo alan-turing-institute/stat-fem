@@ -2,6 +2,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 from scipy.spatial.distance import cdist
 from firedrake.function import Function
+from firedrake.linear_solver import LinearSolver
 from firedrake import COMM_WORLD
 import pytest
 from ..solving_utils import solve_forcing_covariance, interp_covariance_to_data
@@ -19,7 +20,9 @@ def test_solve_forcing_covariance(comm, fs, A, b, fc, A_numpy, cov):
     rhs = Function(fs).vector()
     rhs.set_local(np.ones(fc.get_nx_local()))
 
-    result = solve_forcing_covariance(fc, A, rhs)
+    ls = LinearSolver(A)
+    
+    result = solve_forcing_covariance(fc, ls, rhs)
 
     result_actual = result.gather()
 
@@ -39,7 +42,9 @@ def test_solve_forcing_covariance_parallel(my_ensemble, comm, fs, A, b, fc, A_nu
         rhs = Function(fs).vector()
         rhs.set_local(np.ones(fc.get_nx_local()))
 
-        result = solve_forcing_covariance(fc, A, rhs)
+        ls = LinearSolver(A)
+        
+        result = solve_forcing_covariance(fc, ls, rhs)
 
         result_actual = result.gather()
 
@@ -54,7 +59,9 @@ def test_solve_forcing_covariance_parallel(my_ensemble, comm, fs, A, b, fc, A_nu
         rhs = Function(fs).vector()
         rhs.set_local(0.5*np.ones(fc.get_nx_local()))
 
-        result = solve_forcing_covariance(fc, A, rhs)
+        ls = LinearSolver(A)
+        
+        result = solve_forcing_covariance(fc, ls, rhs)
 
         result_actual = result.gather()
 
@@ -77,12 +84,14 @@ def test_InterpolationMatrix_interp_covariance_to_data(fs, A, fc, coords, interp
 
     assert im.is_assembled
 
+    ls = LinearSolver(A)
+
     result_expected = np.linalg.solve(A_numpy, interp)
     result_expected = np.dot(cov, result_expected)
     result_expected = np.linalg.solve(A_numpy, result_expected)
     result_expected = np.dot(interp.T, result_expected)
 
-    result_actual = interp_covariance_to_data(im, fc, A, im)
+    result_actual = interp_covariance_to_data(im, fc, ls, im)
 
     if COMM_WORLD.rank == 0:
         assert_allclose(result_expected, result_actual, atol=1.e-10)
@@ -103,12 +112,14 @@ def test_InterpolationMatrix_interp_covariance_to_data_ensemble(my_ensemble, fs,
     im = InterpolationMatrix(fs, coords)
     im.assemble()
 
+    ls = LinearSolver(A)
+    
     result_expected = np.linalg.solve(A_numpy, interp)
     result_expected = np.dot(cov, result_expected)
     result_expected = np.linalg.solve(A_numpy, result_expected)
     result_expected = np.dot(interp.T, result_expected)
 
-    result_actual = interp_covariance_to_data(im, fc, A, im, my_ensemble.ensemble_comm)
+    result_actual = interp_covariance_to_data(im, fc, ls, im, my_ensemble.ensemble_comm)
 
     if my_ensemble.comm.rank == 0 and my_ensemble.ensemble_comm.rank == 0:
         assert_allclose(result_expected, result_actual, atol=1.e-10)
