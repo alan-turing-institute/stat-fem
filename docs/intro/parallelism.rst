@@ -73,9 +73,9 @@ following in the file ``model.py``: ::
   
   solve_posterior(A, x, b, fc, data, ensemble_comm=my_ensemble.ensemble_comm) 
   
-Then run the python script with `mpiexec -n 4 python model.py`. This will work similarly
-for all solving functions, a ``LinearSovler`` object, or the ``estimate_params_MAP`` function,
-all of which accept a ``ensemble_comm` keyword argument.
+Then run the python script with ``mpiexec -n 4 python model.py``. This will work similarly
+for all solving functions, a ``LinearSolver`` object, or the ``estimate_params_MAP`` function,
+all of which accept an ``ensemble_comm`` keyword argument.
 
 Note that it is up to the user to ensure that the total number of processes is divisible by the base
 number of processes used when creating the ``Ensemble`` object.

@@ -38,6 +38,7 @@ sys.modules["firedrake.vector"] = unittest.mock.Mock()
 sys.modules["firedrake.petsc"] = unittest.mock.Mock()
 sys.modules["firedrake.matrix"] = unittest.mock.Mock()
 sys.modules["firedrake.solving"] = unittest.mock.Mock()
+sys.modules["firedrake.linear_solver"] = unittest.mock.Mock()
 sys.modules["ufl"] = unittest.mock.Mock()
 sys.modules["mpi4py"] = unittest.mock.Mock()
 
