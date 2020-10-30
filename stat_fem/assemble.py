@@ -37,7 +37,7 @@ def assemble(f, tensor=None, bcs=None, form_compiler_parameters=None,
     1-form, the vector entries at boundary nodes are set to the
     boundary condition values.
 
-    :param f: a :class:`stat_fem.ForcingCovariance`, :class:`~stat_fem.InterpolationMatrix`,
+    :param f: a :class:`~stat_fem.ForcingCovariance`, :class:`~stat_fem.InterpolationMatrix`,
        :class:`~ufl.classes.Form`, :class:`~ufl.classes.Expr` or :class:`~slate.TensorBase`
        expression.
     :param tensor: an existing tensor object to place the result in

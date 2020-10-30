@@ -23,6 +23,13 @@ def estimate_params_MAP(A, b, G, data, priors=[None, None, None], start=None, en
     computations are done on the root process and broadcast to all other processes to
     ensure that all processes have the same final minimum value when the computation terminates.
 
+    Additional keyword arguments can be passed to control the minimization
+    routine options or the PETSc solver options. These will be forwarded
+    to the function calls to ``scipy.optimize.minimize`` or
+    :class:`~stat_fem.LinearSolver`. See the documentation for 
+    `minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html>`_
+    or :class:`~stat_fem.LinearSolver` for more details.
+
     :param A: FEM stiffness matrix, must be a Firedrake Matrix class.
     :type A: Matrix
     :param b: FEM RHS vector, must be a Firedrake Function or Vector
