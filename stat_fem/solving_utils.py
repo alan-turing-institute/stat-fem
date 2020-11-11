@@ -8,7 +8,31 @@ from .ForcingCovariance import ForcingCovariance
 from .InterpolationMatrix import InterpolationMatrix
 
 def solve_forcing_covariance(G, ls, rhs):
-    "solve the forcing covariance part of the stat FEM"
+    """
+    Solve the forcing covariance part of the stat FEM
+
+    This function performs the basic solve needed to determine the
+    prior covariance matrix in the stat-fem method. Two solves of 
+    the FEM are required, in addition to a sparse matrix multiplication.
+    The arguments provide the sparse Forcing Covariance matrix,
+    the Firedrake Linear Solver object representing the FEM, and
+    the RHS to be solved for this particular iteration.
+
+    Note that this solve function temporarily turns off the BCs for
+    the stiffness matrix. This is because Dirichlet BCs will enforce
+    strong boundary conditions on the FEM solves, which is not desired
+    here.
+
+    :param G: Forcing covariance matrix to be used in the solve.
+    :type G: ForcingCovariance
+    :param ls: Firedrake Linear Solver to be used in the solve.
+    :type ls: Firedrake LinearSolver
+    :param rhs: RHS vector to be used in the solve
+    :type rhs: Firedrake Vector
+    :returns: Solution to :math:`A^{-1}GA^{-1}b` where :math:`A` is the FEM
+              stiffness matrix and :math:`b` is the RHS vector.
+    :rtype: Firedrake Vector
+    """
 
     if not isinstance(G, ForcingCovariance):
         raise TypeError("G must be a ForcingCovariance object")
@@ -35,7 +59,47 @@ def solve_forcing_covariance(G, ls, rhs):
     return x.copy()
 
 def interp_covariance_to_data(im_left, G, ls, im_right, ensemble_comm=COMM_SELF):
-    "solve for the interpolated covariance matrix"
+    """
+    Solve for the interpolated covariance matrix
+
+    Solve for the covariance matrix interpolated to the sensor data locations.
+    Note that the arguments allow for two different interpolation matrices
+    to be used, in the event that we wish to compute the covariance matrix for
+    other locations to make predictions. Note that since the Covariance Matrix
+    is symmetric, it is advantageous to put the matrix with fewer spatial
+    locations on the right as it will lead to fewer FEM solves (simply
+    take the transpose if the reverse order is desired)
+
+    This function solves :math:`\Phi_l^T A^{-1}GA^{-1}\Phi_r`, returning
+    it as a 2D numpy array on the root process. This requires doing two FEM
+    solves for each location provided in :math:`\Phi_r` plus some sparse
+    matrix multiplication. Non-root processes will return an empty 2D
+    numpy array (shape ``(0,0)``).
+
+    The solves can be done independently, so optionally a Firedrake
+    Ensemble communicator can be provided for dividing up the solves.
+    The solves are simply divided up among the processes, so it is up
+    to the user to determine an appropriate number of processes given the
+    number of sensor locations that are needed. If not provided, the
+    solves will be done serially.
+
+    :param im_left: Left side InterpolationMatrix
+    :type im_left: InterpolationMatrix
+    :param G: Forcing covariance matrix to be used in the solve.
+    :type G: ForcingCovariance
+    :param ls: Firedrake LinearSolver to be used for the FEM solution
+    :type ls: Firedrake LinearSolver
+    :param im_right: Right side Interpolation Matrix
+    :type im_right: InterpolationMatrix
+    :param ensemble_comm: MPI Communicator over which to parallelize the
+                          FEM solves (optional, default is solve in series)
+    :type ensemble_comm: MPI Communicator
+    :returns: Covariance matrix interpolated to sensor locations. If run
+              in parallel, this is returned on the root process as a 2D
+              numpy array, while all other processes return an empty
+              array (shape ``(0,0)``)
+    :rtype: ndarray
+    """
 
     if not isinstance(im_left, InterpolationMatrix):
         raise TypeError("first argument to interp_covariance_to_data must be an InterpolationMatrix")
