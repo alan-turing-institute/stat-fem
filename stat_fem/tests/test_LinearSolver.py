@@ -48,7 +48,7 @@ def test_LinearSolver_solve_posterior(fs, A, b, meshcoords, fc, od, interp, Ks, 
     # need "data" on actual FEM grid to get full Cu
 
     full_data = ObsData(np.reshape(meshcoords, (-1, 1)), np.ones(nx + 1), 0.1)
-    mu_full, Cu_full = solve_prior_covariance(A, b, fc, full_data)
+    mu_full, Cu_full = solve_prior(A, b, fc, full_data)
 
     if COMM_WORLD.rank == 0:
         tmp_1 = np.linalg.solve(Ks, od.get_data())
@@ -169,7 +169,7 @@ def test_LinearSolver_solve_prior(fs, A, b, fc, od, interp, cov, A_numpy, ls):
 
     mu, Cu = ls.solve_prior()
 
-    mu2, Cu2 = solve_prior_covariance(A, b, fc, od)
+    mu2, Cu2 = solve_prior(A, b, fc, od)
 
     C_expected = np.linalg.solve(A_numpy, interp)
     C_expected = np.dot(cov, C_expected)
