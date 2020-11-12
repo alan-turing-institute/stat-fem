@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 from firedrake import Function, COMM_WORLD, solve
 from ..LinearSolver import LinearSolver
 from ..ObsData import ObsData
-from ..solving import solve_prior_covariance, solve_posterior, solve_posterior_covariance
+from ..solving import solve_prior, solve_posterior, solve_posterior_covariance
 from ..solving import solve_prior_generating, solve_posterior_generating
 from ..solving import predict_mean, predict_covariance
 from .helper_funcs import nx, params, my_ensemble, comm, mesh, fs, A, b, meshcoords, fc, od, interp, Ks
