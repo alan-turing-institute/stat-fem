@@ -23,6 +23,13 @@ def estimate_params_MAP(A, b, G, data, priors=[None, None, None], start=None, en
     computations are done on the root process and broadcast to all other processes to
     ensure that all processes have the same final minimum value when the computation terminates.
 
+    Additional keyword arguments can be passed to control the minimization
+    routine options or the PETSc solver options. These will be forwarded
+    to the function calls to ``scipy.optimize.minimize`` or
+    :class:`~stat_fem.LinearSolver`. See the documentation for 
+    `minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html>`_
+    or :class:`~stat_fem.LinearSolver` for more details.
+
     :param A: FEM stiffness matrix, must be a Firedrake Matrix class.
     :type A: Matrix
     :param b: FEM RHS vector, must be a Firedrake Function or Vector
@@ -45,13 +52,31 @@ def estimate_params_MAP(A, b, G, data, priors=[None, None, None], start=None, en
                           are parallelized. Optional, default value is ``COMM_SELF`` indicating
                           that forcing covariance solves are not parallelized.
     :type enemble_comm: MPI Communicator
-    :param kwargs: Additional keyword arguments to be passed to the minimization routine.
+    :param kwargs: Additional keyword arguments to be passed to either the Firedrake
+                   `LinearSolver` object or the Scipy `minimize` routine. See
+                   the corresponding manuals for more information.
     :returns: A LinearSolver object with the hyperparameters set to the MAP/MLE value. To extract
               the actual parameters, use the ``params`` attribute.
     :rtype: LinearSolver
     """
 
-    ls = LinearSolver(A, b, G, data, priors, ensemble_comm)
+    # extract kwargs for firedrake solver and minimize
+    
+    firedrake_kwargs = ["P", "solver_parameters", "nullspace",
+                        "transpose_nullspace", "near_nullspace",
+                        "options_prefix"]
+
+    ls_kwargs = {}
+    minimize_kwargs = {}
+    
+    for kw in kwargs.keys():
+        if kw in firedrake_kwargs:
+            ls_kwargs[kw] = kwargs[kw]
+        else:
+            minimize_kwargs[kw] = kwargs[kw]
+    
+    ls = LinearSolver(A, b, G, data, priors=priors, ensemble_comm=ensemble_comm,
+                      **ls_kwargs)
 
     ls.solve_prior()
 
@@ -64,7 +89,8 @@ def estimate_params_MAP(A, b, G, data, priors=[None, None, None], start=None, en
     else:
         assert np.array(start).shape == (3,), "bad shape for starting point"
 
-    fmin_dict = minimize(ls.logposterior, start, method='L-BFGS-B', jac=ls.logpost_deriv, options=kwargs)
+    fmin_dict = minimize(ls.logposterior, start, method='L-BFGS-B',
+                         jac=ls.logpost_deriv, options=minimize_kwargs)
 
     assert fmin_dict['success'], "minimization routine failed"
 

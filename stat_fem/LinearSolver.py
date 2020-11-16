@@ -3,9 +3,9 @@ from scipy.linalg import cho_factor, cho_solve
 from scipy.linalg import LinAlgError
 from firedrake import COMM_WORLD, COMM_SELF
 from firedrake.function import Function
-from firedrake.matrix import Matrix
+from firedrake.matrix import MatrixBase
 from firedrake.vector import Vector
-from firedrake.solving import solve
+from firedrake.linear_solver import LinearSolver as fdLS
 from .ForcingCovariance import ForcingCovariance
 from .InterpolationMatrix import InterpolationMatrix
 from .ObsData import ObsData
@@ -27,8 +27,8 @@ class LinearSolver(object):
     or marginal likelihood if no priors are specified and its associated derivatives), and
     prediction of sensor values and uncertainties at unmeasured locations.
 
-    :ivar A: the FEM stiffness matrix
-    :type A: Firedrake Matrix
+    :ivar solver: the base Firedrake FEM solver
+    :type solver: Firedrake LinearSolver
     :ivar b: the FEM RHS vector
     :type b: Firedrake Vector or Function
     :ivar G: Forcing Covariance sparse matrix
@@ -60,7 +60,10 @@ class LinearSolver(object):
     :type current_logpost: float
     """
 
-    def __init__(self, A, b, G, data, priors=[None, None, None], ensemble_comm=COMM_SELF):
+    def __init__(self, A, b, G, data, *, priors=[None, None, None], ensemble_comm=COMM_SELF,
+                 P=None, solver_parameters=None, nullspace=None,
+                 transpose_nullspace=None, near_nullspace=None,
+                 options_prefix=None):
         r"""
         Create a new object encapsulating all solves on the same FEM model
 
@@ -85,11 +88,34 @@ class LinearSolver(object):
         :type priors: list
         :param ensemble_comm: Firedrake Ensemble communicator for parallelizing covariance solves (optional)
         :type ensemble_comm: MPI Communicator
+        :param P: an optional `MatrixBase` to construct any
+                  preconditioner from; if none is supplied ``A`` is
+                  used to construct the preconditioner.
+        :type P: MatrixBase or other derived Matrix type
+        :param parameters: (optional) dict of solver parameters
+        :type parameters: dict
+        :param nullspace: an optional `VectorSpaceBasis` (or
+                          `MixedVectorSpaceBasis`) spanning the null space
+                          of the operator.
+        :type nullspace: VectorSpaceBasis or MixedVectorSpaceBasis
+        :param transpose_nullspace: as for the nullspace, but used to
+                                    make the right hand side consistent.
+        :type transpose_nullspace: VectorSpaceBasis or MixedVectorSpaceBasis
+        :param near_nullspace: as for the nullspace, but used to set
+                              the near nullpace.
+        :type near_nullspace: VectorSpaceBasis or MixedVectorSpaceBasis
+        :param options_prefix: an optional prefix used to distinguish
+                               PETSc options.  If not provided a unique
+                               prefix will be created.  Use this option
+                               if you want to pass options to the solver
+                               from the command line in addition to
+                               through the ``solver_parameters`` dict.
+        :type options_prefix: str
         :returns: new ``LinearSolver`` instance
         :rtype: LinearSolver
         """
 
-        if not isinstance(A, Matrix):
+        if not isinstance(A, MatrixBase):
            raise TypeError("A must be a firedrake matrix")
         if not isinstance(b, (Function, Vector)):
             raise TypeError("b must be a firedrake function or vector")
@@ -107,7 +133,11 @@ class LinearSolver(object):
         if not isinstance(ensemble_comm, type(COMM_WORLD)):
             raise TypeError("ensemble_comm must be an MPI communicator created with a firedrake Ensemble")
 
-        self.A = A
+        self.solver = fdLS(A, P=P, solver_parameters=solver_parameters,
+                           nullspace=nullspace,
+                           transpose_nullspace=transpose_nullspace,
+                           near_nullspace=near_nullspace,
+                           options_prefix=options_prefix)
         self.b = b
         self.G = G
         self.data = data
@@ -177,21 +207,21 @@ class LinearSolver(object):
 
         # form interpolated prior covariance across all ensemble processes
 
-        self.Cu = interp_covariance_to_data(self.im, self.G, self.A, self.im, self.ensemble_comm)
+        self.Cu = interp_covariance_to_data(self.im, self.G, self.solver, self.im, self.ensemble_comm)
 
         # solve base FEM (prior mean) and interpolate to data space on root
 
         self.x = Function(self.G.function_space)
 
         if self.ensemble_comm.rank == 0:
-            solve(self.A, self.x, self.b)
+            self.solver.solve(self.x, self.b)
             self.mu = self.im.interp_mesh_to_data(self.x.vector())
         else:
             self.mu = np.zeros(0)
 
         return self.mu, self.Cu
 
-    def solve_posterior(self, x):
+    def solve_posterior(self, x, scale_mean=False):
         r"""
         Solve FEM posterior in mesh space
 
@@ -202,15 +232,25 @@ class LinearSolver(object):
         the solution is only stored in the root of the ensemble communicator. The Firedrake
         ``Function`` on the other processes will not be modified.
 
+        The optional ``scale_mean`` argument determines if the solution is to be re-scaled
+        by the model discrepancy scaling factor. This value is by default ``False``.
+        To re-scale to match the data, pass ``scale_mean=True``.
+
         :param x: Firedrake ``Function`` for holding the solution. This is modified in place
                   by the method.
         :type x: Firedrake Function
+        :param scale_mean: Boolean indicating if the mean should be scaled by the model
+                           discrepancy scaling factor. Optional, default is ``False``
+        :type scale_mean: bool
         :returns: None
         """
 
+        if not isinstance(bool(scale_mean), bool):
+            raise TypeError("scale_mean argument must be boolean-like")
+        
         # create interpolation matrix if not cached
 
-        if self.Cu is None:
+        if self.Cu is None or self.x is None:
             self.solve_prior()
 
         if self.params is None:
@@ -218,6 +258,11 @@ class LinearSolver(object):
 
         rho = np.exp(self.params[0])
 
+        if scale_mean:
+            scalefact = rho
+        else:
+            scalefact = 1.
+        
         # remaining solves are just done on ensemble root
 
         if self.ensemble_comm.rank == 0:
@@ -239,7 +284,7 @@ class LinearSolver(object):
 
             # solve forcing covariance and interpolate to dataspace
 
-            tmp_meshspace_2 = solve_forcing_covariance(self.G, self.A, tmp_meshspace_1)._scale(rho) + self.x.vector()
+            tmp_meshspace_2 = solve_forcing_covariance(self.G, self.solver, tmp_meshspace_1)._scale(rho) + self.x.vector()
 
             tmp_dataspace_1 = self.im.interp_mesh_to_data(tmp_meshspace_2)
 
@@ -255,12 +300,12 @@ class LinearSolver(object):
 
             tmp_meshspace_1 = self.im.interp_data_to_mesh(tmp_dataspace_2)
 
-            tmp_meshspace_1 = solve_forcing_covariance(self.G, self.A, tmp_meshspace_1)._scale(rho**2)
+            tmp_meshspace_1 = solve_forcing_covariance(self.G, self.solver, tmp_meshspace_1)._scale(rho**2)
 
-            x.assign((tmp_meshspace_2 - tmp_meshspace_1).function)
+            x.assign((tmp_meshspace_2 - tmp_meshspace_1)._scale(scalefact).function)
 
 
-    def solve_posterior_covariance(self):
+    def solve_posterior_covariance(self, scale_mean=False):
         r"""
         Solve posterior FEM and covariance interpolated to the data locations
 
@@ -272,12 +317,22 @@ class LinearSolver(object):
         This is because each process has a different array size, so would require correctly
         pre-allocating arrays of different lengths on each process.
 
+        The optional ``scale_mean`` argument determines if the solution is to be re-scaled
+        by the model discrepancy scaling factor. This value is by default ``False``.
+        To re-scale to match the data, pass ``scale_mean=True``.
+
         :returns: FEM posterior mean and covariance (as a tuple of numpy arrays) on the root process.
                   Non-root processes return numpy arrays of shape ``(0,)`` (mean) and ``(0, 0)``
                   (covariance).
+        :param scale_mean: Boolean indicating if the mean should be scaled by the model
+                           discrepancy scaling factor. Optional, default is ``False``
+        :type scale_mean: bool
         :rtype: tuple of ndarrays
         """
 
+        if not isinstance(bool(scale_mean), bool):
+            raise TypeError("scale_mean argument must be boolean-like")
+        
         # create interpolation matrix if not cached
 
         if self.mu is None or self.Cu is None:
@@ -288,6 +343,11 @@ class LinearSolver(object):
 
         rho = np.exp(self.params[0])
 
+        if scale_mean:
+            scalefact = rho
+        else:
+            scalefact = 1.
+        
         if self.ensemble_comm.rank == 0 and self.G.comm.rank == 0:
             try:
                 Ks = self.data.calc_K_plus_sigma(self.params[1:])
@@ -310,7 +370,7 @@ class LinearSolver(object):
             muy = np.zeros(0)
             Cuy = np.zeros((0,0))
 
-        return muy, Cuy
+        return scalefact*muy, Cuy
 
     def solve_prior_generating(self):
         r"""
@@ -378,7 +438,7 @@ class LinearSolver(object):
 
         return m_etay, C_etay
 
-    def predict_mean(self, coords):
+    def predict_mean(self, coords, scale_mean=True):
         r"""
         Compute the predictive mean
 
@@ -387,14 +447,24 @@ class LinearSolver(object):
         small overhead above the computational work of finding the posterior mean (i.e. you get
         the mean value at new sensor locations for "free" once you have solved the posterior).
 
+        The optional ``scale_mean`` argument determines if the solution is to be re-scaled
+        by the model discrepancy scaling factor. This value is by default ``True``.
+        To re-scale to match the FEM solution, pass ``scale_mean=False``.
+
         :param coords: Spatial coordinates at which the mean will be predicted. Must be a
                        2D Numpy array (or a 1D array, which will assume the second axis has length
                        1)
         :type coords: ndarray
+        :param scale_mean: Boolean indicating if the mean should be scaled by the model
+                           discrepancy scaling factor. Optional, default is ``True``
+        :type scale_mean: bool
         :returns: FEM prediction at specified sensor locations as a numpy array on the root process.
                   All other processes will have a numpy array of length 0.
         :rtype: ndarray
         """
+        
+        if not isinstance(bool(scale_mean), bool):
+            raise TypeError("scale_mean argument must be boolean-like")
 
         coords = np.array(coords, dtype=np.float64)
         if coords.ndim == 1:
@@ -410,13 +480,18 @@ class LinearSolver(object):
 
         rho = np.exp(self.params[0])
 
+        if scale_mean:
+            scalefact = rho
+        else:
+            scalefact = 1.
+        
         x = Function(self.G.function_space)
 
         self.solve_posterior(x)
 
         im = InterpolationMatrix(self.G.function_space, coords)
 
-        mu = rho*im.interp_mesh_to_data(x.vector())
+        mu = scalefact*im.interp_mesh_to_data(x.vector())
 
         im.destroy()
 
@@ -466,10 +541,10 @@ class LinearSolver(object):
         im_coords = InterpolationMatrix(self.G.function_space, coords)
 
         if coords.shape[0] > self.data.get_n_obs():
-            Cucd = interp_covariance_to_data(im_coords, self.G, self.A, self.im, self.ensemble_comm)
+            Cucd = interp_covariance_to_data(im_coords, self.G, self.solver, self.im, self.ensemble_comm)
         else:
-            Cucd = interp_covariance_to_data(self.im, self.G, self.A, im_coords, self.ensemble_comm).T
-        Cucc = interp_covariance_to_data(im_coords, self.G, self.A, im_coords, self.ensemble_comm)
+            Cucd = interp_covariance_to_data(self.im, self.G, self.solver, im_coords, self.ensemble_comm).T
+        Cucc = interp_covariance_to_data(im_coords, self.G, self.solver, im_coords, self.ensemble_comm)
 
         if self.ensemble_comm.rank == 0 and self.G.comm.rank == 0:
             try:
@@ -594,9 +669,9 @@ class LinearSolver(object):
 
             deriv = np.zeros(3)
 
-            deriv[0] = (-np.dot(self.mu, invKCudata) -
-                        rho*np.linalg.multi_dot([invKCudata, self.Cu, invKCudata]) +
-                        rho*np.trace(cho_solve(L, self.Cu)))
+            deriv[0] = (-rho*np.dot(self.mu, invKCudata) -
+                        rho**2*np.linalg.multi_dot([invKCudata, self.Cu, invKCudata]) +
+                        rho**2*np.trace(cho_solve(L, self.Cu)))
             for i in range(0, 2):
                 deriv[i + 1] = -0.5*(np.linalg.multi_dot([invKCudata, K_deriv[i], invKCudata]) -
                                     np.trace(cho_solve(L, K_deriv[i])))

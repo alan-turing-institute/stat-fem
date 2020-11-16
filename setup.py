@@ -2,7 +2,7 @@ import setuptools
 
 # version information
 MAJOR = 0
-MINOR = 1
+MINOR = 2
 MICRO = 0
 PRERELEASE = 0
 ISRELEASED = True

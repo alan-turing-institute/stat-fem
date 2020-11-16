@@ -21,7 +21,9 @@ Register Foundation Data-Centric Engineering Programme.
 
 The following pages include a brief overview of the software,
 instructions for installation, and a walkthrough example illustrating
-how it can be used to solve an example problem.
+how it can be used to solve an example problem. The documentation also
+outlines how computations can be parallelized to take advantage of
+multi-node and multi-core systems.
 
 .. toctree::
    :maxdepth: 1
@@ -30,6 +32,7 @@ how it can be used to solve an example problem.
    intro/overview
    intro/installation
    intro/tutorial
+   intro/parallelism
 
 Details about the ``stat-fem`` implementation can be found on the
 following pages:
