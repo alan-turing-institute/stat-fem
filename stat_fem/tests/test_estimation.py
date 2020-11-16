@@ -3,7 +3,6 @@ from numpy.testing import assert_allclose
 import pytest
 from firedrake import COMM_WORLD
 from mpi4py import MPI
-from ..solving import solve_prior_covariance
 from ..estimation import estimate_params_MAP
 from .helper_funcs import my_ensemble, comm, mesh, fs, A, b, fc, coords, od, params, Ks
 
@@ -52,4 +51,5 @@ def test_estimate_params_MAP(A, b, fc, od):
     diff_arg = COMM_WORLD.allreduce(int(not same_result), op=MPI.SUM)
 
     assert not bool(diff_arg)
+
 gc.collect()

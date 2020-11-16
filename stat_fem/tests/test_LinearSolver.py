@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 from firedrake import Function, COMM_WORLD, solve
 from ..LinearSolver import LinearSolver
 from ..ObsData import ObsData
-from ..solving import solve_prior_covariance, solve_posterior, solve_posterior_covariance
+from ..solving import solve_prior, solve_posterior, solve_posterior_covariance
 from ..solving import solve_prior_generating, solve_posterior_generating
 from ..solving import predict_mean, predict_covariance
 from .helper_funcs import nx, params, my_ensemble, comm, mesh, fs, A, b, meshcoords, fc, od, interp, Ks
@@ -48,7 +48,7 @@ def test_LinearSolver_solve_posterior(fs, A, b, meshcoords, fc, od, interp, Ks, 
     # need "data" on actual FEM grid to get full Cu
 
     full_data = ObsData(np.reshape(meshcoords, (-1, 1)), np.ones(nx + 1), 0.1)
-    mu_full, Cu_full = solve_prior_covariance(A, b, fc, full_data)
+    mu_full, Cu_full = solve_prior(A, b, fc, full_data)
 
     if COMM_WORLD.rank == 0:
         tmp_1 = np.linalg.solve(Ks, od.get_data())
@@ -169,7 +169,7 @@ def test_LinearSolver_solve_prior(fs, A, b, fc, od, interp, cov, A_numpy, ls):
 
     mu, Cu = ls.solve_prior()
 
-    mu2, Cu2 = solve_prior_covariance(A, b, fc, od)
+    mu2, Cu2 = solve_prior(A, b, fc, od)
 
     C_expected = np.linalg.solve(A_numpy, interp)
     C_expected = np.dot(cov, C_expected)

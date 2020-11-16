@@ -88,6 +88,29 @@ class LinearSolver(object):
         :type priors: list
         :param ensemble_comm: Firedrake Ensemble communicator for parallelizing covariance solves (optional)
         :type ensemble_comm: MPI Communicator
+        :param P: an optional `MatrixBase` to construct any
+                  preconditioner from; if none is supplied ``A`` is
+                  used to construct the preconditioner.
+        :type P: MatrixBase or other derived Matrix type
+        :param parameters: (optional) dict of solver parameters
+        :type parameters: dict
+        :param nullspace: an optional `VectorSpaceBasis` (or
+                          `MixedVectorSpaceBasis`) spanning the null space
+                          of the operator.
+        :type nullspace: VectorSpaceBasis or MixedVectorSpaceBasis
+        :param transpose_nullspace: as for the nullspace, but used to
+                                    make the right hand side consistent.
+        :type transpose_nullspace: VectorSpaceBasis or MixedVectorSpaceBasis
+        :param near_nullspace: as for the nullspace, but used to set
+                              the near nullpace.
+        :type near_nullspace: VectorSpaceBasis or MixedVectorSpaceBasis
+        :param options_prefix: an optional prefix used to distinguish
+                               PETSc options.  If not provided a unique
+                               prefix will be created.  Use this option
+                               if you want to pass options to the solver
+                               from the command line in addition to
+                               through the ``solver_parameters`` dict.
+        :type options_prefix: str
         :returns: new ``LinearSolver`` instance
         :rtype: LinearSolver
         """

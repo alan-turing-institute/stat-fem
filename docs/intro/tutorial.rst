@@ -11,7 +11,8 @@ and then creates some synthetic data that is then used to condition
 the posterior solution to the FEM. Hyperparameter estimation is done
 using Maximum Likelihood Estimation.
 
-The full Python script can be found in the file `stat_fem/examples/poisson.py`.
+The full Python script can be found in the file
+``stat_fem/examples/poisson.py``.
 We reproduce the relevant code here in the tutorial interspersed with the
 text.
 
