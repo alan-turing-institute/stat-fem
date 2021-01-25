@@ -17,24 +17,20 @@ challenging problems in data-driven numerical analysis.
 
 ## Installation
 
-### Installing Firedrake
-
-`stat-fem` requires a working Firedrake installation. The easiest way to obtain Firedrake is to
-follow the installation instructions on the [firedrake homepage](https://www.firedrakeproject.org).
-
 ### Installing stat-fem
 
-Once you have installed Firedrake, activate the virtual environment that was created as part of
-the installation process. Within the running virtual environment, switch to the main `stat-fem`
-directory and proceed with the installation by entering:
+`stat-fem` requires a working Firedrake installation. The easiest way
+to obtain Firedrake is to use the installation script provided by the
+Firedrake project on the [firedrake homepage](https://www.firedrakeproject.org).
 
 ```bash
-$ pip install -r requirements.txt
-$ python setup.py install
+curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
+python3 firedrake-install --install git+https://github.com/alan-turing-institute/stat-fem#egg=stat-fem
 ```
 
-This will use `pip` to install any missing dependencies (notably Scipy) and install the `stat-fem`
-package within the Firedrake virtual environment.
+This will install Firedrake and install the `stat-fem` library inside the
+Firedrake virtual environment. If this does not work, details on manual
+installation are provided in the [documentation](https://stat-fem.readthedocs.io/en/latest/intro/installation.html).
 
 ### Using a Docker Container
 
@@ -67,8 +63,11 @@ Any bugs or issues should be filed in the issue tracker on the main Github page.
 
 ## References
 
-[1] Mark Girolami, Alastair Gregory, Ge Yin, and Fehmi Cirak. The Statistical Finite Element
-    Method. 2019. URL: http://arxiv.org/abs/1905.06391, arXiv:1905.06391.
+[1] Mark Girolami, Eky Febrianto, Ge Yin, and Fehmi Cirak. The
+    statistical finite element method (statFEM) for coherent synthesis
+    of observation data and model predictions. *Computer Methods in
+    Applied Mechanics and Engineering*, Volume 375, 2021, 113533,
+    https://doi.org/10.1016/j.cma.2020.113533.
 
 [2] Florian Rathgeber, David A. Ham, Lawrence Mitchell, Michael Lange, Fabio Luporini,
     Andrew T. T. Mcrae, Gheorghe-Teodor Bercea, Graham R. Markall, and Paul H. J. Kelly.
