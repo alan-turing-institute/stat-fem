@@ -59,9 +59,7 @@ def test_assemble_firedrake(fs):
     u = TrialFunction(fs)
     v = TestFunction(fs)
     a = (dot(grad(v), grad(u))) * dx
-    bc = DirichletBC(fs, 0., "on_boundary")
-    A = assemble(a, bcs = bc)
-
-    assert isinstance(A, Matrix)
+    with pytest.raises(NotImplementedError):
+        assemble(a)
 
 gc.collect()

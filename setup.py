@@ -4,7 +4,7 @@ import setuptools
 MAJOR = 0
 MINOR = 3
 MICRO = 0
-PRERELEASE = 1
+PRERELEASE = 2
 ISRELEASED = False
 version = "{}.{}.{}".format(MAJOR, MINOR, MICRO)
 
@@ -43,5 +43,5 @@ setuptools.setup(name='stat_fem',
       author='Alan Turing Institute Research Engineering Group',
       author_email='edaub@turing.ac.uk',
       packages=setuptools.find_packages(),
-      license=['LGPLv3'],
+      license='LGPLv3',
       install_requires=['numpy', 'scipy'])
