@@ -9,7 +9,7 @@ Talk given at the `Firedrake ’21 Conference
 (Virtual) <https://firedrakeproject.org/firedrake_21.html>`__, September
 2021 and slightly modified to be a standalone part of documentation.
 
-.. code:: ipython3
+.. code:: python3
 
     import numpy as np
     from firedrake import UnitIntervalMesh, FunctionSpace, TrialFunction, TestFunction
@@ -29,7 +29,7 @@ Talk given at the `Firedrake ’21 Conference
 **Note:** This cell was not part of the talk as it defined the
 mis-specified FEM that was solved as part of the example.
 
-.. code:: ipython3
+.. code:: python3
 
     def measurement(measure_pts, error):
         assert error > 0.
@@ -81,7 +81,7 @@ that we go into the laboratory and heat a 1D material and measure the
 resulting temperature. We might get something that looks like the
 following:
 
-.. code:: ipython3
+.. code:: python3
 
     %matplotlib inline
     import matplotlib.pyplot as plt
@@ -106,7 +106,7 @@ the solution, I return the assembled linear system and function space
 used to construct the solution as I will need these later to carry out
 the statistical FEM solution.
 
-.. code:: ipython3
+.. code:: python3
 
     from firedrake import UnitIntervalMesh, FunctionSpace, TrialFunction, TestFunction
     from firedrake import SpatialCoordinate, Function, DirichletBC, assemble, solve
@@ -136,7 +136,7 @@ the statistical FEM solution.
         
         return V, A, b
 
-.. code:: ipython3
+.. code:: python3
 
     def plot_solution(u, pts, data, error):
     
@@ -176,7 +176,7 @@ What people often do: RHS is probably uncertain, so we should just add a
 fitting parameter. This can be done in a straightforward manner using
 Maximum Likelihood Estimation.
 
-.. code:: ipython3
+.. code:: python3
 
     def solve_heat_freeparam(coeff):
     
@@ -204,7 +204,7 @@ Maximum Likelihood Estimation.
         
         return u
 
-.. code:: ipython3
+.. code:: python3
 
     import numpy as np
     from scipy.optimize import minimize
@@ -227,7 +227,7 @@ Maximum Likelihood Estimation.
         u = solve_heat_freeparam(coeff)
         plot_solution(u, pts, data, 2.*error)
 
-.. code:: ipython3
+.. code:: python3
 
     mle_estimation(pts, data, error)
 
@@ -284,7 +284,7 @@ multi-variate normal distribution, so we simply compute the discrete
 version of the mean function and covariance matrix to draw random
 variates from this discrete approximation of a GP.
 
-.. code:: ipython3
+.. code:: python3
 
     from scipy.stats import multivariate_normal
     
@@ -322,7 +322,7 @@ wrapper to a PETSc matrix, and carries out the solves via the
 not condition on the data. Eventually we will condition on the observed
 data to determine the posterior.)
 
-.. code:: ipython3
+.. code:: python3
 
     import stat_fem
     
@@ -419,7 +419,7 @@ indicates that there are no strong spatial correlations in the
 discrepancy between the model and the data, only an overall mean scaling
 correction. Thus, the correlation length parameter is not meaningful.
 
-.. code:: ipython3
+.. code:: python3
 
     ls = stat_fem.estimate_params_MAP(A, b, G, obs)
     
@@ -476,7 +476,7 @@ discrepancy is some missing physics. We might expect there to be some
 change in the conditioned FEM solution if the reverse were true, and the
 data were more precise than the FEM solution.
 
-.. code:: ipython3
+.. code:: python3
 
     u = Function(V)
     
@@ -508,7 +508,7 @@ evaluating the mean at the new points. To compute the uncertainty, we
 need to do an additional 2 FEM solves for each prediction point to
 compute the covariance term.
 
-.. code:: ipython3
+.. code:: python3
 
     new_pts = [0.1*float(x)+0.05 for x in range(1, 9)]
     
