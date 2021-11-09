@@ -33,6 +33,7 @@ multi-node and multi-core systems.
    intro/installation
    intro/tutorial
    intro/parallelism
+   intro/firedrake21_talk
 
 Details about the ``stat-fem`` implementation can be found on the
 following pages:
